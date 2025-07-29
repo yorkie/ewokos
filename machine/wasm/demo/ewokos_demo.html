@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EwokOS - WebAssembly Demo</title>
+    <style>
+        body {
+            font-family: 'Courier New', monospace;
+            margin: 0;
+            padding: 20px;
+            background-color: #0d1117;
+            color: #c9d1d9;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .header h1 {
+            color: #58a6ff;
+            margin: 0;
+            font-size: 2.5em;
+            text-shadow: 0 0 10px #58a6ff;
+        }
+        
+        .header p {
+            color: #8b949e;
+            margin: 5px 0;
+            font-size: 1.1em;
+        }
+        
+        .demo-info {
+            background-color: #161b22;
+            border: 2px solid #30363d;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        
+        .demo-info h2 {
+            color: #f85149;
+            margin-top: 0;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 1fr 350px;
+            gap: 20px;
+        }
+        
+        .terminal-container {
+            background-color: #0d1117;
+            border: 2px solid #58a6ff;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 0 20px rgba(88, 166, 255, 0.3);
+        }
+        
+        .terminal-header {
+            background-color: #21262d;
+            padding: 12px 20px;
+            border-bottom: 1px solid #30363d;
+            font-weight: bold;
+            color: #58a6ff;
+            display: flex;
+            align-items: center;
+        }
+        
+        .terminal-header::before {
+            content: "●●●";
+            color: #f85149;
+            margin-right: 15px;
+            font-size: 1.2em;
+        }
+        
+        .terminal {
+            height: 500px;
+            overflow-y: auto;
+            padding: 20px;
+            font-size: 14px;
+            line-height: 1.5;
+            white-space: pre-wrap;
+            background-color: #0d1117;
+            color: #58a6ff;
+        }
+        
+        .command-area {
+            background-color: #161b22;
+            padding: 15px 20px;
+            border-top: 1px solid #30363d;
+            display: flex;
+            gap: 10px;
+        }
+        
+        .command-input {
+            flex: 1;
+            padding: 8px 12px;
+            background-color: #21262d;
+            color: #c9d1d9;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            font-family: inherit;
+            font-size: 14px;
+        }
+        
+        .command-input:focus {
+            outline: none;
+            border-color: #58a6ff;
+            box-shadow: 0 0 0 2px rgba(88, 166, 255, 0.3);
+        }
+        
+        .controls {
+            background-color: #161b22;
+            border: 2px solid #30363d;
+            border-radius: 8px;
+            padding: 20px;
+        }
+        
+        .controls h3 {
+            margin-top: 0;
+            color: #58a6ff;
+            border-bottom: 1px solid #30363d;
+            padding-bottom: 10px;
+        }
+        
+        .button {
+            display: block;
+            width: 100%;
+            padding: 12px;
+            margin: 10px 0;
+            background-color: #21262d;
+            color: #c9d1d9;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+        
+        .button:hover {
+            background-color: #30363d;
+            border-color: #58a6ff;
+        }
+        
+        .button:active {
+            background-color: #58a6ff;
+            color: #0d1117;
+        }
+        
+        .quick-commands {
+            margin-top: 20px;
+        }
+        
+        .quick-commands h4 {
+            color: #f85149;
+            margin-bottom: 10px;
+        }
+        
+        .quick-cmd {
+            background-color: #0d1117;
+            border: 1px solid #30363d;
+            color: #58a6ff;
+            padding: 6px 10px;
+            margin: 5px 0;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 12px;
+        }
+        
+        .quick-cmd:hover {
+            background-color: #21262d;
+            border-color: #58a6ff;
+        }
+        
+        .status {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #0d1117;
+            border-radius: 6px;
+            border-left: 4px solid #58a6ff;
+        }
+        
+        .footer {
+            text-align: center;
+            margin-top: 30px;
+            padding: 20px;
+            color: #8b949e;
+            border-top: 1px solid #30363d;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                grid-template-columns: 1fr;
+            }
+            
+            .header h1 {
+                font-size: 2em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>EwokOS</h1>
+        <p>Microkernel Operating System • WebAssembly Demo</p>
+        <p>Experience a real OS running in your browser!</p>
+    </div>
+    
+    <div class="demo-info">
+        <h2>🚀 WebAssembly Demo</h2>
+        <p>This is a demonstration of EwokOS compiled to WebAssembly using Emscripten.</p>
+        <p>While this is a simplified version, it showcases the core concepts of the EwokOS microkernel architecture.</p>
+    </div>
+    
+    <div class="container">
+        <div class="terminal-container">
+            <div class="terminal-header">
+                EwokOS Terminal
+            </div>
+            <div id="ewokos-console" class="terminal">
+                Loading EwokOS...
+            </div>
+            <div class="command-area">
+                <input type="text" id="command-input" class="command-input" 
+                       placeholder="Enter command (type 'help' for available commands)"
+                       onkeypress="if(event.key==='Enter') sendCommand()">
+                <button class="button" onclick="sendCommand()" style="width: auto; margin: 0;">Execute</button>
+            </div>
+        </div>
+        
+        <div class="controls">
+            <h3>🎛️ Control Panel</h3>
+            
+            <button class="button" onclick="ewokos_demo.clearConsole()">
+                🗑️ Clear Terminal
+            </button>
+            
+            <button class="button" onclick="location.reload()">
+                🔄 Restart EwokOS
+            </button>
+            
+            <div class="quick-commands">
+                <h4>⚡ Quick Commands</h4>
+                <div class="quick-cmd" onclick="quickCommand('help')">help - Show available commands</div>
+                <div class="quick-cmd" onclick="quickCommand('ps')">ps - List running processes</div>
+                <div class="quick-cmd" onclick="quickCommand('info')">info - System information</div>
+                <div class="quick-cmd" onclick="quickCommand('create')">create - Create new process</div>
+                <div class="quick-cmd" onclick="quickCommand('tick')">tick - Scheduler tick</div>
+            </div>
+            
+            <div class="status">
+                <strong>Status:</strong> <span id="status">Loading...</span><br>
+                <strong>Arch:</strong> WebAssembly (wasm32)<br>
+                <strong>Author:</strong> Misa.Z
+            </div>
+            
+            <div style="margin-top: 20px; padding: 15px; background-color: #0d1117; border-radius: 6px; font-size: 12px; color: #8b949e;">
+                <strong>About EwokOS:</strong><br>
+                A microkernel OS with features like multi-processing, IPC, virtual filesystem, and device services. Originally designed for ARM, now demonstrating WebAssembly capabilities.
+            </div>
+        </div>
+    </div>
+    
+    <div class="footer">
+        <p><strong>EwokOS WebAssembly Demo</strong></p>
+        <p>Original OS by Misa.Z (misa.zhu@gmail.com) • WASM Port Demonstration</p>
+        <p>This demo shows EwokOS running in a browser environment using Emscripten compilation.</p>
+    </div>
+
+    <script>
+        function sendCommand() {
+            const input = document.getElementById('command-input');
+            const command = input.value.trim();
+            if (command && ewokos_demo.sendCommand) {
+                ewokos_demo.sendCommand(command);
+                input.value = '';
+            }
+        }
+        
+        function quickCommand(cmd) {
+            if (ewokos_demo.sendCommand) {
+                ewokos_demo.sendCommand(cmd);
+            }
+        }
+        
+        function updateStatus(status) {
+            document.getElementById('status').textContent = status;
+        }
+        
+        // Initialize Module before loading WASM
+        var Module = {};
+        
+        // Update status when WASM loads
+        updateStatus('Loading WebAssembly...');
+        
+        // Override the Module onRuntimeInitialized to update status
+        Module.onRuntimeInitialized = function() {
+            updateStatus('Running ✅');
+        };
+        
+        // Auto-focus command input
+        window.addEventListener('load', function() {
+            document.getElementById('command-input').focus();
+        });
+    </script>
+    
+    <!-- Load the compiled WASM demo -->
+    <script src="ewokos_demo.js"></script>
+</body>
+</html>

@@ -1,7 +1,9 @@
 #include <stdint.h>
+#include <stddef.h>
 #include <kstring.h>
 #include <kernel/proc.h>
 #include <kernel/system.h>
+#include <kprintf.h>
 
 // Forward declaration
 void wasm_init_main(void);
@@ -11,27 +13,23 @@ int32_t load_init_proc(void) {
     // In WASM, we don't load from SD card, so create a simple init process
     // that just runs in kernel space for now
     
-    proc_t* proc = proc_create(PROC_TYPE_PROC);
+    proc_t* proc = proc_create(TASK_TYPE_PROC, NULL);
     if(proc == NULL) {
         return -1;
     }
     
     // Set up basic process info
-    strncpy(proc->info.name, "init", PROC_NAME_MAX-1);
-    proc->info.owner = 0; // root
-    proc->info.pid = 1;   // PID 1
+    strcpy(proc->info.cmd, "init");
+    proc->info.uid = -1;   // root
     
+    // For WASM, we'll just set up a minimal process
     // In a real implementation, we would load the init binary
-    // For WASM, we'll just create a minimal process that yields
-    proc->info.entry = (uint32_t)wasm_init_main;
-    
-    // Make it the current process
-    set_current_proc(proc);
+    // but for now we'll just return success to let the kernel continue
     
     return 0;
 }
 
-// Simple init main function for WASM
+// Simple init main function for WASM - not used in this simplified version
 void wasm_init_main(void) {
     extern int32_t kprintf(const char *format, ...);
     extern void yield(void);
