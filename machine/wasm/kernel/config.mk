@@ -1,0 +1,3 @@
+ARCH_CFLAGS = -DWASM_TARGET
+ARCH_VER=wasm
+BSP=wasm
