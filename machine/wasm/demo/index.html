@@ -13,38 +13,6 @@
             color: #c9d1d9;
         }
         
-        .header {
-            text-align: center;
-            margin-bottom: 30px;
-        }
-        
-        .header h1 {
-            color: #58a6ff;
-            margin: 0;
-            font-size: 2.5em;
-            text-shadow: 0 0 10px #58a6ff;
-        }
-        
-        .header p {
-            color: #8b949e;
-            margin: 5px 0;
-            font-size: 1.1em;
-        }
-        
-        .demo-info {
-            background-color: #161b22;
-            border: 2px solid #30363d;
-            border-radius: 8px;
-            padding: 20px;
-            margin-bottom: 30px;
-            text-align: center;
-        }
-        
-        .demo-info h2 {
-            color: #f85149;
-            margin-top: 0;
-        }
-        
         .container {
             max-width: 1400px;
             margin: 0 auto;
@@ -199,25 +167,10 @@
             .container {
                 grid-template-columns: 1fr;
             }
-            
-            .header h1 {
-                font-size: 2em;
-            }
         }
     </style>
 </head>
 <body>
-    <div class="header">
-        <h1>EwokOS</h1>
-        <p>Microkernel Operating System • WebAssembly Demo</p>
-        <p>Experience a real OS running in your browser!</p>
-    </div>
-    
-    <div class="demo-info">
-        <h2>🚀 WebAssembly Demo</h2>
-        <p>This is a demonstration of EwokOS compiled to WebAssembly using Emscripten.</p>
-        <p>While this is a simplified version, it showcases the core concepts of the EwokOS microkernel architecture.</p>
-    </div>
     
     <div class="container">
         <div class="terminal-container">
@@ -249,10 +202,11 @@
             <div class="quick-commands">
                 <h4>⚡ Quick Commands</h4>
                 <div class="quick-cmd" onclick="quickCommand('help')">help - Show available commands</div>
-                <div class="quick-cmd" onclick="quickCommand('ps')">ps - List running processes</div>
-                <div class="quick-cmd" onclick="quickCommand('info')">info - System information</div>
-                <div class="quick-cmd" onclick="quickCommand('create')">create - Create new process</div>
-                <div class="quick-cmd" onclick="quickCommand('tick')">tick - Scheduler tick</div>
+                <div class="quick-cmd" onclick="quickCommand('ps')">ps - List all processes</div>
+                <div class="quick-cmd" onclick="quickCommand('sysinfo')">sysinfo - System information</div>
+                <div class="quick-cmd" onclick="quickCommand('proc')">proc - Create new process</div>
+                <div class="quick-cmd" onclick="quickCommand('thread')">thread - Create new thread</div>
+                <div class="quick-cmd" onclick="quickCommand('sched')">sched - Scheduler tick</div>
             </div>
             
             <div class="status">
@@ -263,7 +217,7 @@
             
             <div style="margin-top: 20px; padding: 15px; background-color: #0d1117; border-radius: 6px; font-size: 12px; color: #8b949e;">
                 <strong>About EwokOS:</strong><br>
-                A microkernel OS with features like multi-processing, IPC, virtual filesystem, and device services. Originally designed for ARM, now demonstrating WebAssembly capabilities.
+                A microkernel OS demonstrating process management, scheduling, IPC, and virtual filesystem. This WebAssembly port showcases authentic kernel concepts in a browser environment.
             </div>
         </div>
     </div>
