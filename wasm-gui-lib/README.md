@@ -21,6 +21,46 @@ The library provides web-compatible replacements for:
 - Font rendering → Web fonts
 - Memory management → WebAssembly memory model
 
+## Prerequisites
+
+This project requires Emscripten to compile C/C++ code to WebAssembly.
+
+### Installing Emscripten
+
+1. **Download and install Emscripten SDK:**
+   ```bash
+   # Clone the emsdk repository
+   git clone https://github.com/emscripten-core/emsdk.git
+   cd emsdk
+   
+   # Download and install the latest SDK tools
+   ./emsdk install latest
+   
+   # Make the latest SDK "active" for the current user
+   ./emsdk activate latest
+   
+   # Activate PATH and other environment variables in the current terminal
+   source ./emsdk_env.sh
+   ```
+
+2. **Verify installation:**
+   ```bash
+   emcc --version
+   ```
+
+3. **For permanent setup, add to your shell profile:**
+   ```bash
+   echo 'source /path/to/emsdk/emsdk_env.sh' >> ~/.bashrc
+   # or for zsh users:
+   echo 'source /path/to/emsdk/emsdk_env.sh' >> ~/.zshrc
+   ```
+
+### Alternative Installation Methods
+
+- **Ubuntu/Debian:** `sudo apt install emscripten`
+- **macOS with Homebrew:** `brew install emscripten`
+- **Windows:** Download from [emscripten.org](https://emscripten.org/docs/getting_started/downloads.html)
+
 ## Building
 
 ```bash
