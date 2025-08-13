@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>EwokOS GUI WebAssembly Demo</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+        }
+        canvas {
+            border: 1px solid #ccc;
+            display: block;
+            margin: 20px auto;
+        }
+        .controls {
+            text-align: center;
+            margin: 20px;
+        }
+        button {
+            margin: 5px;
+            padding: 10px 20px;
+            font-size: 16px;
+        }
+    </style>
+</head>
+<body>
+    <h1>EwokOS GUI WebAssembly Demo</h1>
+    <p>This demo shows the ported XWIN GUI library running in WebAssembly.</p>
+    
+    <canvas id="canvas" width="800" height="600"></canvas>
+    
+    <div class="controls">
+        <button onclick="clearCanvas()">Clear</button>
+        <button onclick="drawShapes()">Draw Shapes</button>
+        <button onclick="drawText()">Draw Text</button>
+        <button onclick="createWindow()">Create Window</button>
+    </div>
+    
+    <div id="output"></div>
+
+    <script src="ewok-gui.js"></script>
+    <script>
+        let Module;
+        let graph;
+        let xSystem;
+        let mainWindow;
+        
+        // Initialize the library
+        EwokGUIModule().then(function(M) {
+            Module = M;
+            console.log('EwokOS GUI WebAssembly module loaded');
+            
+            // Initialize the graphics system
+            web_x_init_canvas('canvas');
+            web_x_setup_event_handlers('canvas');
+            
+            // Create main X system
+            xSystem = Module._malloc(32); // x_t structure size
+            Module.ccall('x_init', null, ['number', 'number'], [xSystem, 0]);
+            
+            log('EwokOS GUI system initialized');
+            
+            // Create a sample window
+            createWindow();
+        }).catch(function(err) {
+            console.error('Failed to load module:', err);
+        });
+        
+        function log(message) {
+            const output = document.getElementById('output');
+            output.innerHTML += '<p>' + message + '</p>';
+            console.log(message);
+        }
+        
+        function clearCanvas() {
+            if (!Module) return;
+            
+            const canvas = document.getElementById('canvas');
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = 'white';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            log('Canvas cleared');
+        }
+        
+        function drawShapes() {
+            if (!Module || !graph) return;
+            
+            // Draw some shapes using the graphics API
+            const red = 0xffff0000;
+            const green = 0xff00ff00;
+            const blue = 0xff0000ff;
+            
+            // Clear
+            Module.ccall('graph_clear', null, ['number', 'number'], [graph, 0xffffffff]);
+            
+            // Draw rectangle
+            Module.ccall('graph_fill', null, ['number', 'number', 'number', 'number', 'number', 'number'], 
+                        [graph, 50, 50, 100, 80, red]);
+            
+            // Draw circle
+            Module.ccall('graph_fill_circle', null, ['number', 'number', 'number', 'number', 'number'], 
+                        [graph, 200, 100, 40, green]);
+            
+            // Draw line
+            Module.ccall('graph_line', null, ['number', 'number', 'number', 'number', 'number', 'number'], 
+                        [graph, 10, 200, 300, 250, blue]);
+            
+            // Flush to canvas
+            Module.ccall('web_graph_flush_to_canvas', null, ['number', 'string'], [graph, 'canvas']);
+            
+            log('Shapes drawn');
+        }
+        
+        function drawText() {
+            if (!Module || !graph) return;
+            
+            // Create a font
+            const font = Module.ccall('font_new', 'number', ['string', 'number'], ['Arial', 1]);
+            
+            // Draw text
+            Module.ccall('graph_draw_text', null, ['number', 'number', 'number', 'string', 'number', 'number', 'number'], 
+                        [graph, 50, 300, 'Hello from EwokOS!', font, 24, 0xff000000]);
+            
+            // Flush to canvas
+            Module.ccall('web_graph_flush_to_canvas', null, ['number', 'string'], [graph, 'canvas']);
+            
+            log('Text drawn');
+        }
+        
+        function createWindow() {
+            if (!Module || !xSystem) return;
+            
+            // Create a window
+            mainWindow = Module.ccall('xwin_open', 'number', ['number', 'number', 'number', 'number', 'number', 'number', 'string', 'number'], 
+                                     [xSystem, 0, 100, 100, 600, 400, 'Demo Window', 0]);
+            
+            if (mainWindow) {
+                // Get the window's graph
+                graph = Module.ccall('xwin_fetch_graph', 'number', ['number', 'number'], [mainWindow, 0]);
+                
+                // Set window visible
+                Module.ccall('xwin_set_visible', 'number', ['number', 'number'], [mainWindow, 1]);
+                
+                log('Window created and made visible');
+                
+                // Draw initial content
+                drawInitialContent();
+            } else {
+                log('Failed to create window');
+            }
+        }
+        
+        function drawInitialContent() {
+            if (!Module || !graph) return;
+            
+            // Clear with light blue background
+            Module.ccall('graph_clear', null, ['number', 'number'], [graph, 0xffe6f3ff]);
+            
+            // Draw a title bar
+            Module.ccall('graph_fill', null, ['number', 'number', 'number', 'number', 'number', 'number'], 
+                        [graph, 0, 0, 600, 30, 0xff4a90e2]);
+            
+            // Draw some sample content
+            const font = Module.ccall('font_new', 'number', ['string', 'number'], ['Arial', 1]);
+            
+            Module.ccall('graph_draw_text', null, ['number', 'number', 'number', 'string', 'number', 'number', 'number'], 
+                        [graph, 10, 50, 'EwokOS GUI Library Demo', font, 20, 0xff000000]);
+            
+            Module.ccall('graph_draw_text', null, ['number', 'number', 'number', 'string', 'number', 'number', 'number'], 
+                        [graph, 10, 80, 'Click and type to interact', font, 14, 0xff666666]);
+            
+            // Draw a button-like rectangle
+            Module.ccall('graph_fill', null, ['number', 'number', 'number', 'number', 'number', 'number'], 
+                        [graph, 50, 120, 120, 40, 0xfff0f0f0]);
+            Module.ccall('graph_box', null, ['number', 'number', 'number', 'number', 'number', 'number'], 
+                        [graph, 50, 120, 120, 40, 0xff888888]);
+            Module.ccall('graph_draw_text', null, ['number', 'number', 'number', 'string', 'number', 'number', 'number'], 
+                        [graph, 80, 145, 'Button', font, 16, 0xff000000]);
+            
+            // Flush to canvas
+            Module.ccall('web_graph_flush_to_canvas', null, ['number', 'string'], [graph, 'canvas']);
+            
+            log('Initial window content drawn');
+        }
+        
+        // Expose functions to global scope for debugging
+        window.web_x_init_canvas = function(id) { 
+            if (Module) Module.ccall('web_x_init_canvas', null, ['string'], [id]); 
+        };
+        window.web_x_setup_event_handlers = function(id) { 
+            if (Module) Module.ccall('web_x_setup_event_handlers', null, ['string'], [id]); 
+        };
+    </script>
+</body>
+</html>
