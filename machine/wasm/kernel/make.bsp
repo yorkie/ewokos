@@ -1,0 +1,3 @@
+# WASM BSP build configuration
+BSP_OBJS = bsp/start.o bsp/hw_info_arch.o bsp/irq.o bsp/timer.o bsp/uart.o bsp/sd.o
+DEV_OBJS = 

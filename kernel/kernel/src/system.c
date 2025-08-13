@@ -86,10 +86,18 @@ inline void kernel_unlock(void) {
 
 inline void halt(void) {
 	while(1) {
-#ifdef ARM_V6
+#ifdef WASM_PLATFORM
+		// WASM platform - just do a simple loop or exit
+		break; // Let it fall through to exit
+#elif defined(ARM_V6)
 		__asm__("MOV r0, #0; MCR p15,0,R0,c7,c0,4"); // CPU enter WFI state
 #else
 		__asm__("WFI");
 #endif
 	}
+#ifdef WASM_PLATFORM
+	// On WASM, halt should exit the simulation
+	extern void wasm_exit(int32_t code);
+	wasm_exit(0);
+#endif
 }

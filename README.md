@@ -10,7 +10,7 @@
 
 .About
 
-	A microkernel OS for learning operating system. versatilepb / raspi1,2,3 ported well, raspi4 todo....
+	A microkernel OS for learning operating system. versatilepb / raspi1,2,3 / WASM ported well, raspi4 todo....
 	-mmu
 	-smp multi-core
  	-64bits & 32bits
@@ -23,6 +23,7 @@
 	-uart device service
 	-SD card
  	-USB
+	-WASM platform support (host simulation + Node.js runtime)
 
 .Environment & Tools
 
@@ -80,6 +81,20 @@
 	
 	"cd kernel/build/{arch}; make":
 	  build EwokOS kernel image.
+
+.WASM platform (new)
+
+	"cd machine/wasm/kernel":
+	  build and run EwokOS on WASM platform
+	"make":
+	  build WASM kernel (host simulation mode)
+	"./kernel.wasm":
+	  run kernel in host simulation
+	"node wasm_runtime.js kernel.wasm":
+	  run kernel with Node.js runtime
+	"make debug":
+	  run kernel with Node.js debugger
+	See: machine/wasm/kernel/README.md for detailed documentation
 	
 .make rootfs (system/root.ext2)
 	
