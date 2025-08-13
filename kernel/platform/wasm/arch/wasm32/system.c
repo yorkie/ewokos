@@ -1,5 +1,6 @@
 #include <kernel/kernel.h>
 #include <kernel/system.h>
+#include <kernel/context.h>
 #include <stdint.h>
 
 // Host simulation of WASM runtime
@@ -8,6 +9,15 @@
 #define _GNU_SOURCE
 #include <sys/time.h>
 #include <unistd.h>
+
+// WASM platform global variables that need to be defined
+ewokos_addr_t _allocable_phy_mem_base = 0x20000000;  // 512MB base
+ewokos_addr_t _allocable_phy_mem_top = 0x40000000;   // 1GB top
+
+// WASM linker symbols (simulated)
+char _kernel_end[1];
+char _bss_start[1]; 
+char _bss_end[1];
 
 static char uart_input_buffer[256] = {0};
 static int uart_input_pos = 0;
@@ -116,97 +126,6 @@ void halt(void) {
     while(1);
 }
 
-// WASM-specific halt implementation
-inline void arch_halt(void) {
-    halt();
-}
-
-void __irq_enable(void) {
-    // WASM doesn't have hardware interrupts
-}
-
-void __irq_disable(void) {
-    // WASM doesn't have hardware interrupts  
-}
-
-void _irq_enable(void) {
-    // WASM doesn't have hardware interrupts
-}
-
-void _irq_disable(void) {
-    // WASM doesn't have hardware interrupts
-}
-
-uint32_t __irq_disable_switch(void) {
-    // WASM doesn't have hardware interrupts
-    return 0;
-}
-
-void __irq_enable_switch(uint32_t cpsr) {
-    (void)cpsr;
-    // WASM doesn't have hardware interrupts
-}
-
-// System information for WASM
-void arch_vm_init(void) {
-    // WASM uses flat memory model - no MMU setup needed
-}
-
-void arch_kernel_vm_init(void) {
-    // WASM uses flat memory model
-}
-
-uint32_t arch_get_core_id(void) {
-    // Single core for WASM
-    return 0;
-}
-
-void arch_halt_core(uint32_t core_id) {
-    (void)core_id;
-    halt();
-}
-
-void arch_stop_core(uint32_t core_id) {
-    (void)core_id;
-    halt();
-}
-
-void arch_start_core(uint32_t core_id, void* entry) {
-    (void)core_id;
-    (void)entry;
-    // WASM is single-core, ignore
-}
-
-// Memory barrier functions (no-op for WASM)
-void dmb(void) {
-    // No memory barriers needed in WASM
-}
-
-void dsb(void) {
-    // No memory barriers needed in WASM
-}
-
-void isb(void) {
-    // No instruction barriers needed in WASM
-}
-
-// Cache functions (no-op for WASM)
-void flush_dcache_all(void) {
-    // WASM doesn't have caches
-}
-
-void flush_dcache_range(uint32_t start, uint32_t end) {
-    (void)start;
-    (void)end;
-    // WASM doesn't have caches
-}
-
-void invalidate_dcache_range(uint32_t start, uint32_t end) {
-    (void)start;
-    (void)end;
-    // WASM doesn't have caches
-}
-
 // Platform-specific early debug output
 void _debug_output(const char* s) {
     if (s) {
@@ -216,3 +135,137 @@ void _debug_output(const char* s) {
         wasm_debug_print(s, len);
     }
 }
+
+// WASM timer function
+void timer_set_interval(uint32_t id, uint32_t times_per_sec) {
+    (void)id;
+    (void)times_per_sec;
+    // Timer is handled by the host environment
+}
+
+// WASM VM function 
+void arch_vm(page_dir_entry_t* vm) {
+    (void)vm;
+    // WASM doesn't need VM setup
+}
+
+// WASM device initialization functions
+void uart_dev_init(int baud) {
+    (void)baud;
+    // UART is always ready in WASM simulation
+}
+
+void sd_init(void) {
+    // SD is simulated by the host
+}
+
+// WASM memory allocation architecture function
+void kalloc_arch(void) {
+    // No special architecture setup needed for WASM
+}
+
+// WASM cache and system functions (no-ops)
+void __flush_dcache_all(void) {
+    // WASM doesn't have caches
+}
+
+void __set_vector_table(ewokos_addr_t base) {
+    (void)base;
+    // WASM doesn't have interrupt vectors
+}
+
+// WASM system info initialization
+void sys_info_init_arch(void) {
+    // WASM-specific system info already set in hw_info_arch.c
+}
+
+// WASM interrupt table symbols (simulated)
+uint32_t interrupt_table_start = 0;
+uint32_t interrupt_table_end = 0;
+
+// WASM timer function
+uint64_t timer_read_sys_usec(void) {
+    return (uint64_t)wasm_get_time_ms() * 1000; // Convert ms to usec
+}
+
+// WASM missing functions needed for kernel
+void uart_write(char c) {
+    wasm_debug_print(&c, 1);
+}
+
+int sd_dev_read(uint32_t block_addr) {
+    (void)block_addr;
+    return 0; // Simulate success
+}
+
+void sd_dev_read_done(void) {
+    // No-op for WASM
+}
+
+uint32_t irq_get(void) {
+    return 0; // No pending IRQs
+}
+
+void timer_clear_interrupt(void) {
+    // No-op for WASM
+}
+
+void dump_ctx(context_t* ctx) {
+    (void)ctx;
+    // No-op for WASM - could implement debug output here
+}
+
+void irq_arch_init(void) {
+    // No-op for WASM
+}
+
+void irq_disable_cpsr(context_t* ctx) {
+    (void)ctx;
+    // No-op for WASM
+}
+
+int check_mem_map_arch(ewokos_addr_t phy_base, uint32_t size) {
+    (void)phy_base;
+    (void)size;
+    return 0; // Allow all memory access in WASM
+}
+
+void __memcpy32(void* dest, const void* src, uint32_t sz) {
+    // Simple memcpy implementation
+    char* d = (char*)dest;
+    const char* s = (const char*)src;
+    for (uint32_t i = 0; i < sz; i++) {
+        d[i] = s[i];
+    }
+}
+
+// Additional system functions needed by kernel
+void flush_dcache(void) {
+    // WASM doesn't have caches
+}
+
+void flush_tlb(void) {
+    // WASM doesn't have TLB
+}
+
+void set_translation_table_base(ewokos_addr_t base) {
+    (void)base;
+    // WASM doesn't have MMU hardware
+}
+
+void set_vector_table(ewokos_addr_t base) {
+    (void)base;
+    // WASM doesn't have interrupt vectors
+}
+
+void _delay_msec(uint32_t ms) {
+    // Simple delay using time
+    uint64_t start = timer_read_sys_usec();
+    uint64_t target = start + (ms * 1000);
+    while (timer_read_sys_usec() < target) {
+        // Busy wait
+    }
+}
+
+// Kernel lock functions for SMP (no-op for WASM)
+// These are defined as macros in system.h for WASM

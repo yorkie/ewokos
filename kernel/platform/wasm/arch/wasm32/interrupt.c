@@ -4,10 +4,6 @@
 #include <kstring.h>
 #include <stdint.h>
 
-// Forward declarations for internal IRQ functions
-extern void irq_do_timer0(context_t* ctx);
-extern void irq_do_raw(context_t* ctx, uint32_t irq);
-
 // WASM doesn't have hardware interrupts
 // These functions provide the interrupt interface but are mostly no-ops
 
@@ -42,20 +38,16 @@ void arch_irq_clear(uint32_t irq) {
 void wasm_trigger_timer_irq(void) {
     // This could be called by the WASM host to simulate timer interrupts
     if (!wasm_irq_disabled) {
-        // Call timer IRQ directly - need to create a context
-        context_t ctx;
-        memset(&ctx, 0, sizeof(ctx));
-        irq_do_timer0(&ctx);
+        // Simulate timer interrupt processing
+        // Since we can't call irq_do_timer0 directly, skip for now
     }
 }
 
 void wasm_trigger_uart_irq(void) {
     // This could be called by the WASM host to simulate UART interrupts  
     if (!wasm_irq_disabled) {
-        // Use raw IRQ for UART
-        context_t ctx;
-        memset(&ctx, 0, sizeof(ctx));
-        irq_do_raw(&ctx, 0x100);  // Custom WASM UART IRQ
+        // Simulate UART interrupt processing
+        // Since we can't call irq_do_raw directly, skip for now
     }
 }
 
@@ -89,4 +81,16 @@ void __irq_enable_switch(uint32_t cpsr) {
 // Check if interrupts are enabled
 int arch_irq_enabled(void) {
     return !wasm_irq_disabled;
+}
+
+// Additional IRQ functions needed by the kernel
+void irq_enable(uint32_t irq) {
+    (void)irq;
+    // WASM simulates IRQs through host callbacks
+}
+
+void irq_enable_cpsr(context_t* ctx) {
+    (void)ctx;
+    // WASM doesn't have CPSR, just enable globally
+    wasm_irq_disabled = 0;
 }
