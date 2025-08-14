@@ -40,6 +40,14 @@ const char* font_get_name(font_t* font);
 bool    font_fixed(font_t* font);
 const char* font_name_by_fname(const char* fname);
 
+// Text drawing functions
+void graph_draw_text_font(graph_t* g, int32_t x, int32_t y, const char* str,
+		font_t* font, uint32_t size, uint32_t color);
+void graph_draw_text_font_align(graph_t* g, int32_t x, int32_t y, int32_t w, int32_t h,
+        const char* str, font_t* font, uint32_t size, uint32_t color, uint32_t align);
+void graph_draw_text(graph_t* g, int32_t x, int32_t y, const char* str,
+        font_t* font, uint32_t size, uint32_t color);
+
 #ifdef __cplusplus
 }
 #endif

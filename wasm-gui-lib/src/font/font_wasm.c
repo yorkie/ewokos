@@ -125,6 +125,50 @@ bool font_fixed(font_t* font) {
     return f->fixed;
 }
 
+void graph_draw_text_font(graph_t* g, int32_t x, int32_t y, const char* str,
+        font_t* font, uint32_t size, uint32_t color) {
+    if (!g || !str || !font || !g->buffer) return;
+    
+    font_wasm_t* f = (font_wasm_t*)font;
+    int font_size = size > 0 ? size : f->size;
+    
+    // Simple bitmap text rendering for demo purposes
+    // This is a minimal implementation that draws rectangles for characters
+    int char_width = font_size / 2;
+    int char_height = font_size;
+    
+    for (int i = 0; str[i] && x + i * char_width < g->w; i++) {
+        if (y >= 0 && y + char_height <= g->h) {
+            // Draw a simple rectangle for each character as placeholder
+            for (int cy = 0; cy < char_height; cy++) {
+                for (int cx = 0; cx < char_width; cx++) {
+                    int px = x + i * char_width + cx;
+                    int py = y + cy;
+                    if (px >= 0 && px < g->w && py >= 0 && py < g->h) {
+                        // Simple character pattern (just outline for demo)
+                        if (cx == 0 || cy == 0 || cx == char_width-1 || cy == char_height-1) {
+                            g->buffer[py * g->w + px] = color;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+void graph_draw_text_font_align(graph_t* g, int32_t x, int32_t y, int32_t w, int32_t h,
+        const char* str, font_t* font, uint32_t size, uint32_t color, uint32_t align) {
+    if (!g || !str || !font) return;
+    
+    // Simple left-aligned implementation for now
+    graph_draw_text_font(g, x, y, str, font, size, color);
+}
+
+void graph_draw_text(graph_t* g, int32_t x, int32_t y, const char* str,
+        font_t* font, uint32_t size, uint32_t color) {
+    graph_draw_text_font(g, x, y, str, font, size, color);
+}
+
 #ifdef __cplusplus
 }
 #endif

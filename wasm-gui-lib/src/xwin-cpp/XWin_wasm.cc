@@ -164,13 +164,13 @@ void XWin::repaint(void) {
 	xwin_repaint(xwin);
 }
 
-int32_t XWin::getX(void) {
+int32_t XWin::getPosX(void) {
 	if(xwin == NULL || xwin->xinfo == NULL)
 		return 0;
 	return xwin->xinfo->wsr.x;
 }
 
-int32_t XWin::getY(void) {
+int32_t XWin::getPosY(void) {
 	if(xwin == NULL || xwin->xinfo == NULL)
 		return 0;
 	return xwin->xinfo->wsr.y;

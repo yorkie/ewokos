@@ -93,6 +93,12 @@ public:
 	gpos_t getInsidePos(int32_t x, int32_t y);
 	gpos_t getScreenPos(int32_t x, int32_t y);
 	bool focused();
+	
+	// WebAssembly extensions - dimension getters  
+	int32_t getW(void);
+	int32_t getH(void);
+	int32_t getPosX(void);
+	int32_t getPosY(void);
 };
 
 }

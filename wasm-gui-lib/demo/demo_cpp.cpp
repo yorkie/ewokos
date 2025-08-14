@@ -1,6 +1,7 @@
-#include "web_x++.h"
-#include "web_graph.h"
-#include "web_font.h"
+#include "x++/X.h"
+#include "x++/XWin.h"
+#include "graph/graph.h"
+#include "font/font.h"
 #include <cstdio>
 
 using namespace Ewok;
@@ -8,13 +9,10 @@ using namespace Ewok;
 class DemoWin : public XWin {
 private:
     font_t* font;
-    int mouseX, mouseY;
-    int keyPressed;
-    bool mouseDown;
     
 public:
-    DemoWin() : font(nullptr), mouseX(0), mouseY(0), keyPressed(0), mouseDown(false) {
-        font = font_new("Arial", true);
+    DemoWin() : font(nullptr) {
+        font = font_new("Arial", false);
     }
     
     ~DemoWin() {
@@ -30,24 +28,46 @@ public:
         graph_clear(g, 0xffe6f3ff);
         
         // Draw title bar
-        graph_fill(g, 0, 0, getWidth(), 30, 0xff4a90e2);
+        graph_fill(g, 0, 0, getW(), 30, 0xff4a90e2);
         
-        // Draw title text
+        // Draw some simple text using the basic text implementation
         graph_draw_text(g, 10, 20, "EwokOS GUI Demo - C++", font, 16, 0xffffffff);
+        graph_draw_text(g, 10, 60, "Migrated from original xwin source!", font, 14, 0xff000000);
         
-        // Draw instructions
-        graph_draw_text(g, 10, 60, "Move mouse and click!", font, 14, 0xff000000);
-        graph_draw_text(g, 10, 80, "Press any key!", font, 14, 0xff000000);
+        // Draw some colored rectangles
+        graph_fill(g, 50, 100, 100, 50, 0xffff0000);  // Red
+        graph_fill(g, 170, 100, 100, 50, 0xff00ff00); // Green  
+        graph_fill(g, 290, 100, 100, 50, 0xff0000ff); // Blue
         
-        // Draw mouse position
-        char mouseText[64];
-        snprintf(mouseText, sizeof(mouseText), "Mouse: (%d, %d) %s", 
-                mouseX, mouseY, mouseDown ? "DOWN" : "UP");
-        graph_draw_text(g, 10, 120, mouseText, font, 12, 0xff666666);
-        
-        // Draw key info
-        if (keyPressed > 0) {
-            char keyText[64];
+        // Draw circles
+        graph_fill_circle(g, 100, 200, 30, 0xffffff00); // Yellow circle
+        graph_fill_circle(g, 220, 200, 30, 0xffff00ff); // Magenta circle
+        graph_fill_circle(g, 340, 200, 30, 0xff00ffff); // Cyan circle
+    }
+    
+    bool onClose() override {
+        return true; // Allow close
+    }
+};
+
+// Main demo function
+extern "C" int demo_main() {
+    X x;
+    
+    DemoWin* win = new DemoWin();
+    if (!win->open(&x, 0, 100, 100, 500, 300, "EwokOS WebAssembly Demo", XWIN_STYLE_NORMAL)) {
+        delete win;
+        return -1;
+    }
+    
+    win->setVisible(true);
+    win->repaint();
+    
+    // In WebAssembly, we don't run a traditional event loop
+    // The browser will handle repainting as needed
+    
+    return 0;
+}
             snprintf(keyText, sizeof(keyText), "Last key: %d (0x%x)", keyPressed, keyPressed);
             graph_draw_text(g, 10, 140, keyText, font, 12, 0xff666666);
         }

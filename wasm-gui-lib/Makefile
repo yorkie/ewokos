@@ -7,7 +7,7 @@ CFLAGS = -I./include -O2 -s WASM=1 -s EXPORTED_RUNTIME_METHODS=['ccall','cwrap',
          -s ALLOW_MEMORY_GROWTH=1 -s MODULARIZE=1 -s EXPORT_NAME='EwokGUIModule'
 
 DEMO_CFLAGS = -I./include -O2 -s WASM=1 -s EXPORTED_RUNTIME_METHODS=['ccall','cwrap','setValue','getValue'] \
-              -s EXPORTED_FUNCTIONS=['_malloc','_free','_web_handle_mouse_event','_web_handle_key_event','_demo_main','_web_x_init_canvas','_web_x_setup_event_handlers','_web_graph_flush_to_canvas','_x_init','_x_run','_x_terminate','_x_push_event','_xwin_open','_xwin_close','_xwin_destroy','_xwin_fetch_graph','_xwin_set_visible','_xwin_repaint','_xwin_move_to','_xwin_resize_to','_graph_new','_graph_free','_graph_init','_graph_clear','_graph_fill','_graph_pixel','_graph_pixel_safe','_graph_line','_graph_box','_graph_circle','_graph_fill_circle','_graph_blt','_graph_blt_alpha','_graph_draw_text','_graph_draw_text_font','_graph_get_pixel','_graph_set_clip','_graph_unset_clip','_font_new','_font_free','_font_init','_font_load','_font_text_size'] \
+              -s EXPORTED_FUNCTIONS=['_malloc','_free','_demo_main','_x_init','_x_run','_x_terminate','_x_push_event','_xwin_open','_xwin_close','_xwin_destroy','_xwin_fetch_graph','_xwin_set_visible','_xwin_repaint','_xwin_move_to','_xwin_resize_to','_graph_new','_graph_free','_graph_init','_graph_clear','_graph_fill','_graph_pixel','_graph_pixel_safe','_graph_line','_graph_box','_graph_circle','_graph_fill_circle','_graph_blt','_graph_blt_alpha','_graph_draw_text','_graph_draw_text_font','_graph_get_pixel','_graph_set_clip','_graph_unset_clip','_font_new','_font_free','_font_init','_font_load','_font_text_size'] \
               -s ALLOW_MEMORY_GROWTH=1 -s MODULARIZE=1 -s EXPORT_NAME='EwokGUIModule'
 
 CXXFLAGS = $(DEMO_CFLAGS) -std=c++14
@@ -47,7 +47,7 @@ CPP_SRCS = $(SRCDIR)/xwin-cpp/X_wasm.cc \
            $(SRCDIR)/xwin-cpp/XTheme_wasm.cc
 
 # Demo sources
-DEMO_SRCS = demo/demo_cpp.cpp
+DEMO_SRCS = demo/demo_cpp_simple.cpp
 
 # Build targets
 LIB_JS = $(BUILDDIR)/ewok-gui.js
