@@ -4,8 +4,7 @@
 #include <stddef.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <ewokos_config.h>
 
-// WebAssembly compatible basic definitions
-// Stripped of EwokOS-specific config
 
 #endif
