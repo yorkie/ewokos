@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>EwokOS GUI JavaScript API Demo</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+        }
+        canvas {
+            border: 1px solid #ccc;
+            display: block;
+            margin: 20px auto;
+        }
+        .controls {
+            text-align: center;
+            margin: 20px;
+        }
+        button {
+            margin: 5px;
+            padding: 10px 20px;
+            font-size: 16px;
+        }
+        .status {
+            text-align: center;
+            margin: 20px;
+            padding: 10px;
+            background: #f0f0f0;
+            border-radius: 5px;
+        }
+        .code {
+            background: #f8f8f8;
+            border: 1px solid #ddd;
+            padding: 15px;
+            margin: 20px;
+            border-radius: 5px;
+            font-family: monospace;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+    <h1>EwokOS GUI JavaScript API Demo</h1>
+    <p>This demo provides a JavaScript API similar to the original xwin system.</p>
+    
+    <canvas id="canvas" width="800" height="600"></canvas>
+    
+    <div class="controls">
+        <button onclick="runOriginalStyleDemo()">Run Original Style Demo</button>
+        <button onclick="clearCanvas()">Clear Canvas</button>
+    </div>
+    
+    <div class="status" id="status">
+        Loading WebAssembly module...
+    </div>
+    
+    <div class="code" id="demo-code">
+// Demo code will appear here
+    </div>
+
+    <script src="ewok-gui.js"></script>
+    <script>
+        let Module;
+        let X, PNG, Font; // API objects
+        
+        function updateStatus(message) {
+            document.getElementById('status').textContent = message;
+            console.log(message);
+        }
+        
+        function showCode(code) {
+            document.getElementById('demo-code').textContent = code;
+        }
+        
+        // Initialize the library and create API objects
+        EwokGUIModule().then(function(M) {
+            Module = M;
+            
+            // Create X API object similar to original
+            X = {
+                open: function(title, x, y, w, h) {
+                    return new XWin(title, x, y, w, h);
+                },
+                run: function() {
+                    // Start the main loop - handled by XWin instances
+                    updateStatus('X.run() called - main loop started');
+                }
+            };
+            
+            // Simple PNG loader (stub)
+            PNG = {
+                load: function(path) {
+                    return {
+                        width: 32,
+                        height: 32,
+                        data: null // Would load actual PNG data
+                    };
+                }
+            };
+            
+            // Font API
+            Font = function(name) {
+                this.name = name || 'Arial';
+                this.handle = Module.ccall('font_new', 'number', ['string', 'number'], [this.name, 1]);
+            };
+            
+            updateStatus('EwokOS GUI JavaScript API ready! Click "Run Original Style Demo".');
+        }).catch(function(err) {
+            updateStatus('Failed to load WebAssembly module: ' + err);
+            console.error('Module loading error:', err);
+        });
+        
+        // XWin class that mimics the original xwin API
+        class XWin {
+            constructor(title, x, y, w, h) {
+                this.title = title;
+                this.x = x || 0;
+                this.y = y || 0;
+                this.w = w || 400;
+                this.h = h || 300;
+                this.visible = false;
+                
+                // Create the underlying window
+                if (Module) {
+                    this.xSystem = Module._malloc(32); // x_t structure
+                    Module.ccall('x_init', null, ['number', 'number'], [this.xSystem, 0]);
+                    Module.ccall('web_x_init_canvas', null, ['string'], ['canvas']);
+                    Module.ccall('web_x_setup_event_handlers', null, ['string'], ['canvas']);
+                    
+                    this.xwin = Module.ccall('xwin_open', 'number', 
+                        ['number', 'number', 'number', 'number', 'number', 'number', 'string', 'number'], 
+                        [this.xSystem, 0, this.x, this.y, this.w, this.h, this.title, 0]);
+                    
+                    this.graph = Module.ccall('xwin_fetch_graph', 'number', ['number', 'number'], [this.xwin, 0]);
+                }
+                
+                // Event handlers
+                this.onRepaint = null;
+                this.onMouse = null;
+                this.onIM = null;
+                this.onResize = null;
+                
+                // Setup automatic repainting
+                this.setupEventHandling();
+            }
+            
+            setupEventHandling() {
+                // Simulate the event handling from original system
+                const self = this;
+                
+                // Setup mouse events
+                const canvas = document.getElementById('canvas');
+                canvas.addEventListener('mousedown', (e) => self.handleMouseEvent(e, 1));
+                canvas.addEventListener('mouseup', (e) => self.handleMouseEvent(e, 2));
+                canvas.addEventListener('mousemove', (e) => self.handleMouseEvent(e, 3));
+                canvas.addEventListener('click', (e) => self.handleMouseEvent(e, 3));
+                
+                // Setup keyboard events
+                canvas.addEventListener('keydown', (e) => self.handleKeyEvent(e, 0));
+                canvas.addEventListener('keyup', (e) => self.handleKeyEvent(e, 1));
+                
+                // Make canvas focusable
+                canvas.tabIndex = 0;
+            }
+            
+            handleMouseEvent(e, state) {
+                if (this.onMouse && this.visible) {
+                    const rect = e.target.getBoundingClientRect();
+                    const mouseEvt = {
+                        x: e.clientX - rect.left,
+                        y: e.clientY - rect.top,
+                        state: state,
+                        button: e.button || 0
+                    };
+                    this.onMouse(mouseEvt);
+                }
+            }
+            
+            handleKeyEvent(e, state) {
+                if (this.onIM && this.visible) {
+                    const imEvt = {
+                        c: e.keyCode,
+                        state: state
+                    };
+                    this.onIM(imEvt);
+                }
+            }
+            
+            setVisible(visible) {
+                this.visible = visible;
+                if (Module && this.xwin) {
+                    Module.ccall('xwin_set_visible', 'number', ['number', 'number'], [this.xwin, visible ? 1 : 0]);
+                }
+                if (visible) {
+                    this.repaint();
+                }
+            }
+            
+            repaint() {
+                if (this.onRepaint && this.visible && Module && this.graph) {
+                    const g = new GraphicsContext(this.graph);
+                    this.onRepaint(g);
+                    Module.ccall('web_graph_flush_to_canvas', null, ['number', 'string'], [this.graph, 'canvas']);
+                }
+            }
+        }
+        
+        // Graphics context wrapper
+        class GraphicsContext {
+            constructor(graphHandle) {
+                this.handle = graphHandle;
+            }
+            
+            clear(color) {
+                Module.ccall('graph_clear', null, ['number', 'number'], [this.handle, color]);
+            }
+            
+            drawText(x, y, text, font, size, color) {
+                const fontHandle = font ? font.handle : Module.ccall('font_new', 'number', ['string', 'number'], ['Arial', 1]);
+                Module.ccall('graph_draw_text', null, ['number', 'number', 'number', 'string', 'number', 'number', 'number'], 
+                    [this.handle, x, y, text, fontHandle, size, color]);
+            }
+            
+            bltAlpha(png, sx, sy, sw, sh, dx, dy, dw, dh, alpha) {
+                // Simplified - would need actual image handling
+                const color = 0xff888888;
+                Module.ccall('graph_fill', null, ['number', 'number', 'number', 'number', 'number', 'number'], 
+                    [this.handle, dx, dy, dw, dh, color]);
+            }
+        }
+        
+        function runOriginalStyleDemo() {
+            if (!Module || !X) {
+                updateStatus('WebAssembly module not loaded yet');
+                return;
+            }
+            
+            // Show the demo code
+            const demoCode = `var xwin = X.open("js_test", -1, -1, 300, 200);
+
+var png = PNG.load("/data/images/mac.png");
+var font = new Font("system");
+
+var mevent = null;
+var ievent = null;
+var ix = 0, iy = 0;
+
+xwin.onRepaint = function(g) {
+    g.clear(0xffffffff);
+    g.bltAlpha(png, 0, 0, png.width, png.height, ix, iy, png.width, png.height, 0xff);
+
+    if(mevent == null)
+        g.drawText(0, 0, "try move and click mouse anywhere", font, 16, 0xffff0000);
+    else 
+        g.drawText(0, 0, "mouse: " + mevent.x + ", " + mevent.y + ", state: " + mevent.state, font, 16, 0xffff0000);
+    
+    if(ievent == null)
+        g.drawText(0, 20, "try type any key", font, 16, 0xffff0000);
+    else 
+        g.drawText(0, 20, "key: " + ievent.c + ", state: " + ievent.state, font, 16, 0xffff0000);
+};
+
+xwin.onMouse = function(mouseEvt) {
+    mevent = mouseEvt;
+    if(mouseEvt.state == 3) {
+        ix = mouseEvt.x;
+        iy = mouseEvt.y;
+    }
+    xwin.repaint();
+};
+
+xwin.onIM = function(imEvt) {
+    ievent = imEvt;
+    if(imEvt.c == 40) iy += 8;      // down arrow
+    else if(imEvt.c == 38) iy -= 8; // up arrow
+    else if(imEvt.c == 37) ix -= 8; // left arrow
+    else if(imEvt.c == 39) ix += 8; // right arrow
+    xwin.repaint();
+};
+
+xwin.setVisible(true);
+X.run();`;
+            
+            showCode(demoCode);
+            
+            // Run the actual demo
+            try {
+                var xwin = X.open("js_test", -1, -1, 300, 200);
+                
+                var png = PNG.load("/data/images/mac.png");
+                var font = new Font("system");
+                
+                var mevent = null;
+                var ievent = null;
+                var ix = 0, iy = 0;
+                
+                xwin.onRepaint = function(g) {
+                    g.clear(0xffffffff);
+                    g.bltAlpha(png, 0, 0, png.width, png.height, ix, iy, png.width, png.height, 0xff);
+                
+                    if(mevent == null)
+                        g.drawText(0, 0, "try move and click mouse anywhere", font, 16, 0xffff0000);
+                    else 
+                        g.drawText(0, 0, "mouse: " + mevent.x + ", " + mevent.y + ", state: " + mevent.state, font, 16, 0xffff0000);
+                    
+                    if(ievent == null)
+                        g.drawText(0, 20, "try type any key", font, 16, 0xffff0000);
+                    else 
+                        g.drawText(0, 20, "key: " + ievent.c + ", state: " + ievent.state, font, 16, 0xffff0000);
+                };
+                
+                xwin.onMouse = function(mouseEvt) {
+                    mevent = mouseEvt;
+                    if(mouseEvt.state == 3) {
+                        ix = mouseEvt.x;
+                        iy = mouseEvt.y;
+                    }
+                    xwin.repaint();
+                };
+                
+                xwin.onIM = function(imEvt) {
+                    ievent = imEvt;
+                    if(imEvt.c == 40) iy += 8;      // down arrow
+                    else if(imEvt.c == 38) iy -= 8; // up arrow
+                    else if(imEvt.c == 37) ix -= 8; // left arrow
+                    else if(imEvt.c == 39) ix += 8; // right arrow
+                    xwin.repaint();
+                };
+                
+                xwin.setVisible(true);
+                X.run();
+                
+                updateStatus('Original style demo running! Move mouse, click, and use arrow keys to move the image.');
+                
+            } catch (err) {
+                updateStatus('Error running demo: ' + err);
+                console.error('Demo error:', err);
+            }
+        }
+        
+        function clearCanvas() {
+            const canvas = document.getElementById('canvas');
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = 'white';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            updateStatus('Canvas cleared');
+        }
+    </script>
+</body>
+</html>

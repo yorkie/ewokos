@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>EwokOS GUI WebAssembly C++ Demo</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+        }
+        canvas {
+            border: 1px solid #ccc;
+            display: block;
+            margin: 20px auto;
+        }
+        .controls {
+            text-align: center;
+            margin: 20px;
+        }
+        button {
+            margin: 5px;
+            padding: 10px 20px;
+            font-size: 16px;
+        }
+        .status {
+            text-align: center;
+            margin: 20px;
+            padding: 10px;
+            background: #f0f0f0;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>EwokOS GUI WebAssembly C++ Demo</h1>
+    <p>This demo shows the ported XWIN GUI library with C++ API running in WebAssembly.</p>
+    
+    <canvas id="canvas" width="600" height="400"></canvas>
+    
+    <div class="controls">
+        <button onclick="startDemo()">Start Demo</button>
+        <button onclick="clearCanvas()">Clear Canvas</button>
+    </div>
+    
+    <div class="status" id="status">
+        Loading WebAssembly module...
+    </div>
+
+    <script src="demo-cpp.js"></script>
+    <script>
+        let Module;
+        let demoStarted = false;
+        
+        function updateStatus(message) {
+            document.getElementById('status').textContent = message;
+            console.log(message);
+        }
+        
+        // Initialize the C++ demo
+        EwokGUIModule().then(function(M) {
+            Module = M;
+            updateStatus('WebAssembly module loaded successfully! Click "Start Demo" to begin.');
+        }).catch(function(err) {
+            updateStatus('Failed to load WebAssembly module: ' + err);
+            console.error('Module loading error:', err);
+        });
+        
+        function startDemo() {
+            if (!Module) {
+                updateStatus('WebAssembly module not loaded yet');
+                return;
+            }
+            
+            if (demoStarted) {
+                updateStatus('Demo already running');
+                return;
+            }
+            
+            try {
+                updateStatus('Starting C++ demo...');
+                Module.ccall('demo_main', null, [], []);
+                demoStarted = true;
+                updateStatus('C++ demo started! Move mouse and click in the canvas area. Try typing keys too.');
+            } catch (err) {
+                updateStatus('Error starting demo: ' + err);
+                console.error('Demo start error:', err);
+            }
+        }
+        
+        function clearCanvas() {
+            const canvas = document.getElementById('canvas');
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = 'white';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            updateStatus('Canvas cleared');
+        }
+        
+        // Handle canvas focus for keyboard events
+        window.addEventListener('load', function() {
+            const canvas = document.getElementById('canvas');
+            canvas.addEventListener('click', function() {
+                canvas.focus();
+            });
+        });
+    </script>
+</body>
+</html>
