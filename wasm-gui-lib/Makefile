@@ -16,14 +16,35 @@ SRCDIR = src
 BUILDDIR = build
 INCLUDEDIR = include
 
-# Core sources
-CORE_SRCS = $(SRCDIR)/core/wasm_types.c \
-            $(SRCDIR)/core/web_graph.c \
-            $(SRCDIR)/core/web_x.c \
-            $(SRCDIR)/core/web_font.c
+# WebAssembly compatibility layer
+COMPAT_SRCS = $(SRCDIR)/wasm_ewok_compat.c
 
-# C++ sources  
-CPP_SRCS = $(SRCDIR)/cpp/web_x++.cpp
+# Original EwokOS X11 sources adapted for WebAssembly  
+XWIN_SRCS = $(SRCDIR)/xwin/x_wasm.c \
+            $(SRCDIR)/xwin/xwin_wasm.c
+
+# Graphics library sources
+GRAPH_SRCS = $(SRCDIR)/graph/graph.c \
+             $(SRCDIR)/graph/graph_ex.c \
+             $(SRCDIR)/graph/pixel.c \
+             $(SRCDIR)/graph/line.c \
+             $(SRCDIR)/graph/circle.c \
+             $(SRCDIR)/graph/box.c \
+             $(SRCDIR)/graph/blt.c \
+             $(SRCDIR)/graph/arc.c \
+             $(SRCDIR)/graph/round.c \
+             $(SRCDIR)/graph/bitmap.c
+
+# Font library sources
+FONT_SRCS = $(SRCDIR)/font/font_wasm.c
+
+# Core sources (adapted from original EwokOS)
+CORE_SRCS = $(COMPAT_SRCS) $(XWIN_SRCS) $(GRAPH_SRCS) $(FONT_SRCS)
+
+# C++ sources (adapted from original EwokOS X++)
+CPP_SRCS = $(SRCDIR)/xwin-cpp/X_wasm.cc \
+           $(SRCDIR)/xwin-cpp/XWin_wasm.cc \
+           $(SRCDIR)/xwin-cpp/XTheme_wasm.cc
 
 # Demo sources
 DEMO_SRCS = demo/demo_cpp.cpp
