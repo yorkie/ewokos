@@ -45,6 +45,19 @@ static int null_write(vdevice_t* dev,
     return size;
 }
 
+#ifdef __wasm__
+static vdevice_t wasm_null_dev;
+
+int ewok_service_init(void) {
+    memset(&wasm_null_dev, 0, sizeof(wasm_null_dev));
+    strcpy(wasm_null_dev.desc, "null");
+    wasm_null_dev.read = null_read;
+    wasm_null_dev.write = null_write;
+    return device_run(&wasm_null_dev, "/dev/null", FS_TYPE_CHAR, 0666, false);
+}
+
+int ewok_service_step(void) { return 0; }
+#else
 int main(int argc, char** argv) {
     const char* mnt_point = argc > 1 ? argv[1]: "/dev/null";
 
@@ -57,3 +70,4 @@ int main(int argc, char** argv) {
     device_run(&dev, mnt_point, FS_TYPE_CHAR, 0666, false);
     return 0;
 }
+#endif

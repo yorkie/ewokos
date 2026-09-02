@@ -44,6 +44,7 @@ int      x_fetch_screen_graph(uint32_t index, graph_t* g);
 int      x_get_display_num(void);
 void     x_init(x_t* x, void* data);
 int      x_run(x_t* x, void* loop_data);
+int      x_run_once(x_t* x, void* loop_data);
 void     x_terminate(x_t* x);
 const char*  x_get_own_dir(char* ret, uint32_t len);
 int      x_get_theme(x_theme_t* theme);

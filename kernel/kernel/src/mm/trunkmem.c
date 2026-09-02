@@ -105,6 +105,31 @@ static mem_block_t* trunk_find_block(malloc_t* m, mem_block_t* target) {
     return NULL;
 }
 
+/*
+ * m->start is an allocator-owned search hint, so validating the hint and its
+ * immediate links is sufficient before resuming the normal checked walk.
+ * Searching for it from m->head on every allocation makes the hot path scan
+ * the same prefix twice.
+ */
+static mem_block_t* trunk_validate_start(malloc_t* m, mem_block_t* block,
+        uintptr_t heap_begin, uintptr_t heap_end) {
+    mem_block_t* prev;
+
+    if(m == NULL || block == NULL ||
+            !trunk_ptr_in_heap(heap_begin, heap_end, block) ||
+            !trunk_ptr_aligned(block))
+        return NULL;
+
+    prev = block->prev;
+    if(prev != NULL &&
+            (!trunk_ptr_in_heap(heap_begin, heap_end, prev) ||
+             !trunk_ptr_aligned(prev)))
+        return NULL;
+    if(!trunk_block_sane(heap_begin, heap_end, prev, block))
+        return NULL;
+    return block;
+}
+
 static mem_block_t* gen_block(char* p, uint32_t size) {
     uint32_t block_size = sizeof(mem_block_t);
     mem_block_t* block = (mem_block_t*)p;
@@ -163,7 +188,7 @@ char* trunk_malloc(malloc_t* m, uint32_t size) {
     prev = NULL;
     mem_block_t* block = m->head;
     if(m->start != NULL) {
-        block = trunk_find_block(m, m->start);
+        block = trunk_validate_start(m, m->start, heap_begin, heap_end);
         if(block == NULL)
             block = m->head;
         else
@@ -319,7 +344,7 @@ void trunk_free(malloc_t* m, char* p) {
 
     block->used = 0; //mark as free.
     block = try_merge(m, block);
-    if(block == NULL || trunk_find_block(m, block) == NULL)
+    if(block == NULL)
         return;
     if(m->start == 0 || m->start >= block)
         m->start = block->prev;

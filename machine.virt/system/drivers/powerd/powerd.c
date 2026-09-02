@@ -26,13 +26,25 @@ static int power_read(vdevice_t* dev, int fd, int from_pid, fsinfo_t* info,
     return 3;
 }
 
-int main(int argc, char** argv) {
-    const char* mnt_point = argc > 1 ? argv[1]: "/dev/power0";
-
-    vdevice_t dev;
+static int powerd_start(const char* mnt_point) {
+    static vdevice_t dev;
     memset(&dev, 0, sizeof(vdevice_t));
     strcpy(dev.desc, "powerd");
     dev.read = power_read;
-    device_run(&dev, mnt_point, FS_TYPE_CHAR, 0444, false);
+    return device_run(&dev, mnt_point, FS_TYPE_CHAR, 0444, false);
+}
+
+#ifdef __wasm__
+int ewok_service_init(void) {
+    return powerd_start("/dev/power0");
+}
+
+int ewok_service_step(void) {
     return 0;
 }
+#else
+int main(int argc, char** argv) {
+    const char* mnt_point = argc > 1 ? argv[1]: "/dev/power0";
+    return powerd_start(mnt_point);
+}
+#endif

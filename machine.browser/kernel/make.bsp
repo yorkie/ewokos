@@ -1,0 +1,4 @@
+BSP_OBJS = \
+    bsp/uart.o \
+    bsp/sd.o \
+    bsp/start.o

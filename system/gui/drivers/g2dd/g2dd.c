@@ -738,11 +738,8 @@ static int g2d_dev_cntl(vdevice_t* dev, int from_pid, int cmd, proto_t* in, prot
 	return res;
 }
 
-int main(int argc, char** argv) {
-	const char* mnt_point;
-	vdevice_t dev;
-
-	mnt_point = (argc > 1) ? argv[1] : "/dev/g2d";
+static int g2dd_start(const char* mnt_point) {
+	static vdevice_t dev;
 
 	if(bsp_g2d_init() != 0)
 		return -1;
@@ -757,3 +754,18 @@ int main(int argc, char** argv) {
 		return -1;
 	return 0;
 }
+
+#ifdef __wasm__
+int ewok_service_init(void) {
+	return g2dd_start("/dev/g2d");
+}
+
+int ewok_service_step(void) {
+	return 0;
+}
+#else
+int main(int argc, char** argv) {
+	const char* mnt_point = (argc > 1) ? argv[1] : "/dev/g2d";
+	return g2dd_start(mnt_point);
+}
+#endif

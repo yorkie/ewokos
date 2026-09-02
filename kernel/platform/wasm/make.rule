@@ -1,0 +1,164 @@
+# tools
+ARCH=wasm
+
+# Detect LLVM path for macOS (Homebrew)
+ifeq ($(shell uname -s),Darwin)
+	ifneq ($(wildcard /opt/homebrew/opt/llvm/bin/clang),)
+		LLVM_PREFIX = /opt/homebrew/opt/llvm/bin/
+	else ifneq ($(wildcard /usr/local/opt/llvm/bin/clang),)
+		LLVM_PREFIX = /usr/local/opt/llvm/bin/
+	endif
+endif
+
+CROSS_COMPILE=$(LLVM_PREFIX)clang --target=wasm32
+AR = $(LLVM_PREFIX)llvm-ar
+AS = $(LLVM_PREFIX)llvm-as
+CC = $(LLVM_PREFIX)clang --target=wasm32
+CXX = $(LLVM_PREFIX)clang++ --target=wasm32
+LD = $(CC)
+OBJCOPY = $(LLVM_PREFIX)llvm-objcopy
+OBJDUMP = $(LLVM_PREFIX)llvm-objdump
+
+SRC_DIR=$(EWOKOS_ROOT_DIR)/kernel
+ARCH_DIR=$(SRC_DIR)/platform/wasm/arch
+
+BUILD_DIR = .
+
+# flags
+ARCH_CFLAGS = -nostdlib -ffreestanding -matomics -mbulk-memory
+
+CFLAGS += $(OPTM) \
+	-I. -I$(SRC_DIR)/lib/include \
+	-I$(SRC_DIR)/include \
+	-I$(SRC_DIR)/kernel/include \
+	-I$(SRC_DIR)/dev/include \
+	-I$(ARCH_DIR)/wasm \
+	$(ARCH_CFLAGS) \
+	-Wstrict-prototypes \
+	-pedantic -Wall -Wextra \
+	-fno-builtin-printf \
+	-fno-builtin-strcpy \
+	-Wno-overlength-strings \
+	-fno-builtin-exit \
+	-fno-builtin-stdio \
+	-fno-builtin-memset \
+	-fno-builtin-memcpy \
+	-fno-builtin-strchr \
+	-fno-builtin-strcmp \
+	-fno-builtin-strlen \
+	-fno-builtin-strncpy \
+	-fno-builtin-strncmp \
+	-fno-stack-protector
+
+ARCH_OBJS = \
+	$(ARCH_DIR)/wasm/boot.o \
+	$(ARCH_DIR)/wasm/core.o \
+	$(ARCH_DIR)/wasm/irq.o \
+	$(ARCH_DIR)/wasm/timer.o \
+	$(ARCH_DIR)/wasm/wasm_runtime.o \
+	$(ARCH_DIR)/wasm/mmu_arch.o \
+	$(ARCH_DIR)/wasm/hw_info_arch.o
+
+LIB_EXT2_DIR=$(SRC_DIR)/lib/ext2
+LIB_EXT2_OBJS = \
+	$(LIB_EXT2_DIR)/src/partition.o \
+	$(LIB_EXT2_DIR)/src/ext2read.o
+CFLAGS += -I$(LIB_EXT2_DIR)/include
+
+LIB_EXT3_DIR=$(SRC_DIR)/lib/ext3
+LIB_EXT3_OBJS = $(LIB_EXT3_DIR)/src/ext3read.o
+CFLAGS += -I$(LIB_EXT3_DIR)/include
+
+LIB_SCONF_DIR=$(SRC_DIR)/lib/sconf
+LIB_SCONF_OBJS = $(LIB_SCONF_DIR)/src/sconf.o 
+CFLAGS += -I$(LIB_SCONF_DIR)/include
+
+LIB_DIR = $(SRC_DIR)/lib/src
+LIB_OBJS = \
+	$(LIB_DIR)/kstring.o \
+	$(LIB_DIR)/mstr.o \
+	$(LIB_DIR)/atoi.o \
+	$(LIB_DIR)/vprintf.o \
+	$(LIB_DIR)/proto.o \
+	$(LIB_DIR)/queue.o \
+	$(LIB_DIR)/kprintf.o \
+	$(LIB_DIR)/readfs.o \
+	$(LIB_EXT2_OBJS) \
+	$(LIB_EXT3_OBJS) \
+	$(LIB_SCONF_OBJS)
+
+LOAD_DIR=$(SRC_DIR)/loadinit/sd
+LOAD_OBJS = \
+	$(LOAD_DIR)/loadinit.o
+CFLAGS += -I$(LOAD_DIR)
+
+KERNEL_DIR = $(SRC_DIR)/kernel/src
+KERNEL_OBJS = \
+	$(KERNEL_DIR)/mm/kalloc.o \
+	$(KERNEL_DIR)/mm/trunkmem.o \
+	$(KERNEL_DIR)/mm/kmalloc.o \
+	$(KERNEL_DIR)/mm/kmalloc_vm.o \
+	$(KERNEL_DIR)/mm/dma.o \
+	$(KERNEL_DIR)/mm/shm.o \
+	$(KERNEL_DIR)/mm/mmu.o \
+	$(KERNEL_DIR)/smp/core.o \
+	$(KERNEL_DIR)/irq.o \
+	$(KERNEL_DIR)/svc.o \
+	$(KERNEL_DIR)/semaphore.o \
+	$(KERNEL_DIR)/proc.o \
+	$(KERNEL_DIR)/ipc.o \
+	$(KERNEL_DIR)/signal.o \
+	$(KERNEL_DIR)/interrupt.o \
+	$(KERNEL_DIR)/schedule.o \
+	$(KERNEL_DIR)/system.o \
+	$(KERNEL_DIR)/kevqueue.o \
+	$(KERNEL_DIR)/kernel_config.o \
+	$(KERNEL_DIR)/hw_info.o \
+	$(KERNEL_DIR)/kernel.o
+
+OBJS = $(ARCH_OBJS) \
+	$(LIB_OBJS) \
+	$(LOAD_OBJS) \
+	$(KERNEL_OBJS)
+
+# Use wasm-ld flags instead of standard LDFLAGS if needed, but keeping consistent
+LDFLAGS = \
+	-Wl,--no-entry \
+	-Wl,--export=_start \
+	-Wl,--export=wasm_mmu_self_test \
+	-Wl,--export=wasm_kernel_spawn \
+	-Wl,--export=wasm_kernel_activate \
+	-Wl,--export=wasm_kernel_set_system_process \
+	-Wl,--export=wasm_kernel_syscall \
+	-Wl,--export=wasm_kernel_tick \
+	-Wl,--export=wasm_kernel_runnable \
+	-Wl,--export=wasm_kernel_uptime_usec \
+	-Wl,--export=wasm_kernel_physical_limit \
+	-Wl,--export=wasm_kernel_module_limit \
+	-Wl,--export=wasm_kernel_shm_base \
+	-Wl,--export=wasm_kernel_stack_bottom \
+	-Wl,--export=wasm_kernel_base \
+	-Wl,--export=wasm_kernel_current_pid \
+	-Wl,--export=wasm_kernel_current_owner_pid \
+	-Wl,--export=wasm_kernel_current_dispatchable \
+	-Wl,--export=wasm_kernel_current_entry \
+	-Wl,--export=wasm_kernel_current_arg \
+	-Wl,--export=wasm_kernel_result \
+	-Wl,--import-undefined \
+	-Wl,--global-base=805306368 \
+	-Wl,--no-stack-first \
+	-Wl,-z,stack-size=1048576 \
+	-Wl,--initial-memory=939524096 \
+	-Wl,--max-memory=939524096 \
+	-L $(ARCH_DIR)/wasm
+
+all: $(OS_IMG)
+
+$(OS_IMG): $(OBJS)
+	$(LD) $(OBJS) $(LDFLAGS) -o $(BUILD_DIR)/$(OS_ELF)
+	# Copy to IMG if needed, or just keep ELF as wasm module
+	cp $(BUILD_DIR)/$(OS_ELF) $(BUILD_DIR)/$(OS_IMG)
+
+clean:
+	rm -f $(OBJS)
+	rm -f $(OS_IMG) $(OS_ELF)

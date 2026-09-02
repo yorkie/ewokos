@@ -590,6 +590,46 @@ void vfs_ensure_kids_loaded(uint32_t node_id) {
     if(node_id == 0)
         return;
 
+#ifdef __wasm__
+    /* There is no permanently suspended background C stack in the browser
+     * runtime yet. Fetch outside the VFS lock and apply synchronously; the
+     * actual request still traverses the regular EwokOS IPC path. */
+    fsinfo_t father_info;
+    fsinfo_t* infos = NULL;
+    uint32_t num = 0;
+    int32_t mount_pid;
+    int32_t result;
+
+    pthread_rwlock_wrlock(&_vfs_lock);
+    vfs_node_t* wasm_father = vfs_get_node_by_id(node_id);
+    if(wasm_father == NULL || vfs_node_kids_loaded(wasm_father)) {
+        pthread_rwlock_unlock(&_vfs_lock);
+        return;
+    }
+    mount_pid = get_mount_pid(wasm_father);
+    if(mount_pid <= 0) {
+        vfs_set_kids_loaded(wasm_father);
+        pthread_rwlock_unlock(&_vfs_lock);
+        return;
+    }
+    vfs_fill_node_fsinfo(wasm_father, &father_info);
+    pthread_rwlock_unlock(&_vfs_lock);
+
+    result = vfs_fetch_kids_from_driver(mount_pid, &father_info, &num,
+        &infos);
+    pthread_rwlock_wrlock(&_vfs_lock);
+    wasm_father = vfs_get_node_by_id(node_id);
+    if(result == 0 && wasm_father != NULL &&
+            get_mount_pid(wasm_father) == mount_pid) {
+        (void)vfs_commit_kids_to_node(wasm_father, infos, num);
+        vfs_set_kids_loaded(wasm_father);
+    }
+    pthread_rwlock_unlock(&_vfs_lock);
+    if(infos != NULL)
+        free(infos);
+    return;
+#endif
+
     while(true) {
         bool loading = false;
 

@@ -487,6 +487,24 @@ static uint32_t pipe_check_poll_events(vdevice_t* dev, int fd, int from_pid,
     return events;
 }
 
+#ifdef __wasm__
+static vdevice_t wasm_pipe_dev;
+
+int ewok_service_init(void) {
+    pthread_mutex_init(&_pipes_lock, NULL);
+    memset(&wasm_pipe_dev, 0, sizeof(wasm_pipe_dev));
+    strcpy(wasm_pipe_dev.desc, "pipe");
+    wasm_pipe_dev.open = pipe_open;
+    wasm_pipe_dev.close = pipe_close;
+    wasm_pipe_dev.dup = pipe_dup;
+    wasm_pipe_dev.fcntl = pipe_fcntl;
+    wasm_pipe_dev.check_poll_events = pipe_check_poll_events;
+    return device_run(&wasm_pipe_dev, PIPE_DEV_PATH,
+            FS_TYPE_ANNOUNIMOUS | FS_TYPE_CHAR, 0666, true);
+}
+
+int ewok_service_step(void) { return 0; }
+#else
 int main(int argc, char** argv) {
     const char* mnt_point = argc > 1 ? argv[1] : PIPE_DEV_PATH;
 
@@ -504,3 +522,4 @@ int main(int argc, char** argv) {
     device_run(&dev, mnt_point, FS_TYPE_ANNOUNIMOUS | FS_TYPE_CHAR, 0666, true);
     return 0;
 }
+#endif

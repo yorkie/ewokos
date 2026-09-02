@@ -5,12 +5,45 @@
 
 void queue_init(queue_t* q) {
     q->head = q->tail = NULL;
+#ifdef __wasm__
+    q->free_items = NULL;
+#endif
     q->num = 0;
 }
 
-void queue_push(queue_t* q, void* data) {
+static queue_item_t* queue_item_acquire(queue_t* q) {
+#ifdef __wasm__
+    queue_item_t* it = q->free_items;
+    if(it != NULL)
+        q->free_items = it->next;
+    else
+        it = (queue_item_t*)kmalloc(sizeof(queue_item_t));
+#else
     queue_item_t* it = (queue_item_t*)kmalloc(sizeof(queue_item_t));
-    memset(it, 0, sizeof(queue_item_t));
+    (void)q;
+#endif
+    if(it != NULL)
+        memset(it, 0, sizeof(queue_item_t));
+    return it;
+}
+
+static void queue_item_release(queue_t* q, queue_item_t* it) {
+    if(q == NULL || it == NULL)
+        return;
+#ifdef __wasm__
+    it->data = NULL;
+    it->prev = NULL;
+    it->next = q->free_items;
+    q->free_items = it;
+#else
+    kfree(it);
+#endif
+}
+
+void queue_push(queue_t* q, void* data) {
+    queue_item_t* it = queue_item_acquire(q);
+    if(it == NULL)
+        return;
     it->data = data;
 
     if(q->tail == NULL) {
@@ -25,8 +58,9 @@ void queue_push(queue_t* q, void* data) {
 }
 
 void queue_push_head(queue_t* q, void* data) {
-    queue_item_t* it = (queue_item_t*)kmalloc(sizeof(queue_item_t));
-    memset(it, 0, sizeof(queue_item_t));
+    queue_item_t* it = queue_item_acquire(q);
+    if(it == NULL)
+        return;
     it->data = data;
 
     if(q->head == NULL) {
@@ -52,7 +86,7 @@ void* queue_pop(queue_t* q) {
         q->tail = NULL;
 
     void* ret = it->data;
-    kfree(it);
+    queue_item_release(q, it);
     if(q->num > 0)
         q->num--;
     return ret;
@@ -81,7 +115,7 @@ void queue_remove(queue_t* q, queue_item_t* it) {
         q->head = it->next;
     if(it == q->tail)
         q->tail = it->prev;
-    kfree(it);
+    queue_item_release(q, it);
     if(q->num > 0)
         q->num--;
 }
@@ -95,7 +129,18 @@ void queue_clear(queue_t* q, free_func_t fr) {
         kfree(it);
         it = next;
     }
+#ifdef __wasm__
+    it = q->free_items;
+    while(it != NULL) {
+        queue_item_t* next = it->next;
+        kfree(it);
+        it = next;
+    }
+#endif
     q->head = q->tail = NULL;
+#ifdef __wasm__
+    q->free_items = NULL;
+#endif
     q->num = 0;
 }
 

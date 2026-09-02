@@ -228,37 +228,56 @@ static int doargs(int argc, char* argv[]) {
 }
 */
 
-int main(int argc, char** argv) {
+static int xserver_start(int argc, char** argv, x_t* x, vdevice_t* dev) {
     const char* mnt_point = "/dev/x";
     const char* display_man = "/dev/displayman";
     //doargs(argc, argv);
 
-    x_t x;
-    if(x_init(&x, display_man) != 0)
+    if(x_init(x, display_man) != 0)
         return -1;
 
-    cursor_init("default", &x.cursor);
-    x_load_theme("default", &x.config.theme);
-    x_dirty(&x, -1);
+    cursor_init("default", &x->cursor);
+    x_load_theme("default", &x->config.theme);
+    x_dirty(x, -1);
 
-    vdevice_t dev;
-    memset(&dev, 0, sizeof(vdevice_t));
-    strcpy(dev.desc, "xserver");
-    dev.fcntl = xserver_fcntl;
-    dev.close = xserver_win_close;
-    dev.open = xserver_win_open;
-    dev.dev_cntl = xserver_dev_cntl;
-    dev.cmd = xserver_dev_cmd;
-    dev.loop_step = xserver_step;
-    dev.extra_data = &x;
-    x.dev = &dev;
+    memset(dev, 0, sizeof(vdevice_t));
+    strcpy(dev->desc, "xserver");
+    dev->fcntl = xserver_fcntl;
+    dev->close = xserver_win_close;
+    dev->open = xserver_win_open;
+    dev->dev_cntl = xserver_dev_cntl;
+    dev->cmd = xserver_dev_cmd;
+    dev->loop_step = xserver_step;
+    dev->extra_data = x;
+    x->dev = dev;
 
     /*multi_task serves the IPC requests on kernel worker threads, so the
       handlers and the loop_step run concurrently: the server state lock
       must be ready before the first request lands*/
     pthread_mutex_init(&x_server_lock, NULL);
-    device_run(&dev, mnt_point, FS_TYPE_CHAR | FS_TYPE_ANNOUNIMOUS, 0666, x.config.multi_task);
+    return device_run(dev, mnt_point, FS_TYPE_CHAR | FS_TYPE_ANNOUNIMOUS,
+        0666, x->config.multi_task);
+}
+
+#ifdef __wasm__
+static x_t _wasm_xserver;
+static vdevice_t _wasm_xserver_dev;
+
+int ewok_service_init(void) {
+    char* argv[] = { "xserverd", NULL };
+    return xserver_start(1, argv, &_wasm_xserver, &_wasm_xserver_dev);
+}
+
+int ewok_service_step(void) {
+    return xserver_step(&_wasm_xserver_dev, &_wasm_xserver);
+}
+#else
+int main(int argc, char** argv) {
+    x_t x;
+    vdevice_t dev;
+    int ret = xserver_start(argc, argv, &x, &dev);
     pthread_mutex_destroy(&x_server_lock);
     x_close(&x);
-    return 0;
+    return ret;
 }
+#endif

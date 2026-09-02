@@ -40,10 +40,10 @@ static km_vm_t* km_vm_new(void) {
     return ret;
 }
 
-static void km_vm_unmap_pages(page_dir_entry_t *vm, void* addr, uint32_t pages) {
+static void km_vm_unmap_pages(page_dir_entry_t *vm, ewokos_addr_t addr, uint32_t pages) {
     uint32_t i;
     for (i = 0; i < pages; i++) {
-        ewokos_addr_t physical_addr = resolve_phy_address(vm, (ewokos_addr_t)addr);
+        ewokos_addr_t physical_addr = resolve_phy_address(vm, addr);
 
         //get the kernel address for kalloc/kfree
         ewokos_addr_t kernel_addr = P2V(physical_addr);

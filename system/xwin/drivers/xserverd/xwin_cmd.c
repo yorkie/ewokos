@@ -412,6 +412,8 @@ static int xwm_theme_update(x_t* x) {
             xwin_revalidate_geometry(x, win);
             win = win->next;
         }
+        mark_all_frame_dirty(x, -1);
+        x_repaint_all_win(x);
     }
 
     x_dirty(x, -1);

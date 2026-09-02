@@ -15,6 +15,9 @@ typedef void (*free_func_t)(void* p);
 typedef struct {
 	queue_item_t* head;	
 	queue_item_t* tail;	
+#ifdef __wasm__
+	queue_item_t* free_items;
+#endif
 	uint32_t num;
 }	queue_t;
 

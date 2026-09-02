@@ -96,6 +96,32 @@ static int doargs(int argc, char* argv[]) {
     return optind;
 }
 
+static int logd_start(const char* mnt_point) {
+    static vdevice_t dev;
+    static charbuf_t* buffer;
+    buffer = charbuf_new(_log_size);
+    if(buffer == NULL)
+        return -1;
+
+    memset(&dev, 0, sizeof(vdevice_t));
+    strcpy(dev.desc, "slog");
+    dev.read = log_read;
+    dev.write = log_write;
+    dev.extra_data = buffer;
+    return device_run(&dev, mnt_point, FS_TYPE_CHAR, 0666, false);
+}
+
+#ifdef __wasm__
+int ewok_service_init(void) {
+    _log_size = LOG_SIZE_DEFAULT;
+    _log_kmsg = true;
+    return logd_start("/dev/log");
+}
+
+int ewok_service_step(void) {
+    return 0;
+}
+#else
 int main(int argc, char** argv) {
     const char* mnt_point = "/dev/log";
     int argind = doargs(argc, argv);
@@ -105,19 +131,6 @@ int main(int argc, char** argv) {
     if(_log_size < LOG_SIZE_DEFAULT)
         _log_size = LOG_SIZE_DEFAULT;
 
-    charbuf_t* _buffer = charbuf_new(_log_size);
-    if(_buffer == NULL)
-        return -1;
-
-    vdevice_t dev;
-    memset(&dev, 0, sizeof(vdevice_t));
-    strcpy(dev.desc, "slog");
-    dev.read = log_read;
-    dev.write = log_write;
-    dev.extra_data = _buffer;
-
-    device_run(&dev, mnt_point, FS_TYPE_CHAR, 0666, false);
-
-    charbuf_free(_buffer);
-    return 0;
+    return logd_start(mnt_point);
 }
+#endif

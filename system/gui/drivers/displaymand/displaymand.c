@@ -5,7 +5,16 @@
 #include <string.h>
 #include <ewoksys/vfs.h>
 #include <ewoksys/vdevice.h>
+#ifdef __wasm__
+enum {
+    DISP_GET_DISP_DEV = 0,
+    DISP_ADD_DISP_DEV,
+    DISP_GET_DISP_NUM
+};
+#define DISP_MAX 8
+#else
 #include <displayman/displayman.h>
+#endif
 
 #define DEV_NAME_MAX 64
 
@@ -69,6 +78,22 @@ static int DISP_dev_cntl(vdevice_t* dev, int from_pid, int cmd, proto_t* in, pro
     return 0;
 }
 
+#ifdef __wasm__
+static display_man_t wasm_display_man;
+static vdevice_t wasm_display_man_dev;
+
+int ewok_service_init(void) {
+    memset(&wasm_display_man, 0, sizeof(wasm_display_man));
+    memset(&wasm_display_man_dev, 0, sizeof(wasm_display_man_dev));
+    strcpy(wasm_display_man_dev.desc, "display manager");
+    wasm_display_man_dev.dev_cntl = DISP_dev_cntl;
+    wasm_display_man_dev.extra_data = &wasm_display_man;
+    return device_run(&wasm_display_man_dev, "/dev/displayman", FS_TYPE_CHAR,
+            0444, false);
+}
+
+int ewok_service_step(void) { return 0; }
+#else
 int main(int argc, char** argv) {
     const char* mnt_point = "/dev/displayman";
 
@@ -93,3 +118,4 @@ int main(int argc, char** argv) {
     device_run(&dev, mnt_point, FS_TYPE_CHAR, 0444, false);
     return 0;
 }
+#endif

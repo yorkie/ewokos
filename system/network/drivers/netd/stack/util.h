@@ -5,6 +5,7 @@
 #include <stdint.h>
 #include <unistd.h>
 #include <ewokos_config.h>
+#include <ewoksys/klog.h>
 
 //#define NET_DEBUG  
 

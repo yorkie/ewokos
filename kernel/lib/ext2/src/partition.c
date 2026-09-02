@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <kstring.h>
 #include <mm/kmalloc.h>
+#include <kprintf.h>
 #include "gpt.h"
 #include "partition.h"
 

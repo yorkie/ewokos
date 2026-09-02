@@ -365,10 +365,7 @@ static void handle_ipc(int pid, int cmd, proto_t* in, proto_t* out, void* p) {
     }
 }
 
-int main(int argc, char** argv) {
-    (void)argc;
-    (void)argv;
-
+static int sessiond_start(void) {
     if(load_session_db() != 0)
         return -1;
 
@@ -377,10 +374,32 @@ int main(int argc, char** argv) {
         return -1;
     }
 
-    ipc_serv_run(handle_ipc, NULL, NULL, 0);
+    if(ipc_serv_run(handle_ipc, NULL, NULL, 0) != 0)
+        return -1;
+    klog("session.wasm: loaded %d users and %d groups from ext3\n",
+            _user_num, _group_num);
+    return 0;
+}
+
+#ifdef __wasm__
+int ewok_service_init(void) {
+    return sessiond_start();
+}
+
+int ewok_service_step(void) {
+    return 0;
+}
+#else
+int main(int argc, char** argv) {
+    (void)argc;
+    (void)argv;
+
+    if(sessiond_start() != 0)
+        return -1;
 
     while(1) {
         usleep(100000);
     }
     return 0;
 }
+#endif

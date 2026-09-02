@@ -374,7 +374,8 @@ int xwin_move_to(xwin_t* xwin, int x, int y) {
     xwin->xinfo->wsr.x = x;
     xwin->xinfo->wsr.y = y;
     xwin_update_info(xwin, X_UPDATE_REFRESH);
-    xwin->on_move(xwin);
+    if(xwin->on_move != NULL)
+        xwin->on_move(xwin);
     return 0;
 }
 

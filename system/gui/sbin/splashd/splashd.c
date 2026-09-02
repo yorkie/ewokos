@@ -168,15 +168,8 @@ static int doargs(int argc, char* argv[]) {
     return optind;
 }
 
-int main(int argc, char** argv) {
-    _font_size = DEFAULT_SYSTEM_FONT_SIZE;
-    _w = 240;
-    _h = 240;
-    _dark_mode = false;
-
-    doargs(argc, argv);
-
-    display_t display;
+static int splashd_start(void) {
+    static display_t display;
 
     if(displayman_open("/dev/displayman", _disp_index, &display) != 0)
         return -1;
@@ -196,9 +189,36 @@ int main(int argc, char** argv) {
         return -1;
     }
 
-    ipc_serv_run(handle_ipc, NULL, NULL, IPC_NON_BLOCK);
+    if(ipc_serv_run(handle_ipc, NULL, NULL, IPC_NON_BLOCK) != 0)
+        return -1;
+    paint(1, "Starting native WebAssembly services...", "");
+    return 0;
+}
+
+#ifdef __wasm__
+int ewok_service_init(void) {
+    _font_size = DEFAULT_SYSTEM_FONT_SIZE;
+    _w = 240;
+    _h = 240;
+    _dark_mode = false;
+    return splashd_start();
+}
+
+int ewok_service_step(void) {
+    return 0;
+}
+#else
+int main(int argc, char** argv) {
+    _font_size = DEFAULT_SYSTEM_FONT_SIZE;
+    _w = 240;
+    _h = 240;
+    _dark_mode = false;
+    doargs(argc, argv);
+    if(splashd_start() != 0)
+        return -1;
     while(_splash_info.persantage < 100) {
         usleep(300000);
     }
     return 0;
 }
+#endif

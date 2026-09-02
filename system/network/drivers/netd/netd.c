@@ -214,6 +214,12 @@ static int setup(void)
         return -1;
     }
 
+#ifdef __wasm__
+    if (ip_route_set_default_gateway(iface, DEFAULT_GATEWAY) == -1) {
+        slog("ip_route_set_default_gateway() failure");
+        return -1;
+    }
+#else
     if (ETHER_TAP_USE_DHCP) {
         if(dhcp_run(dev) == -1){
             slog("dhcp_run() failure");
@@ -224,6 +230,7 @@ static int setup(void)
         slog("ip_route_set_default_gateway() failure");
         return -1;
     }
+#endif
 
     /* Open all devices; the protocol engine runs on the main thread via
      * device_run()'s loop_step (network_loop_step), not a private thread. */
@@ -311,10 +318,54 @@ static int network_loop_step(vdevice_t* dev, void* p) {
     return 0;
 }
 
+static vdevice_t network_dev;
+
+static int netd_start(const char* mnt_point, const char* net_dev) {
+    memset(&network_dev, 0, sizeof(vdevice_t));
+    strcpy(network_dev.desc, "networkd");
+
+    pthread_mutex_init(&task_list_lock, NULL);
+    start_task();
+    strcpy(ETHER_TAP_NAME, net_dev);
+    if(setup() != 0) {
+        pthread_mutex_destroy(&task_list_lock);
+        return -1;
+    }
+
+    network_dev.fcntl = network_fcntl;
+    network_dev.open = network_open;
+    network_dev.dup = network_dup;
+    network_dev.read = network_read;
+    network_dev.write = network_write;
+    network_dev.close = network_close;
+    network_dev.cmd = network_devcmd;
+    network_dev.check_poll_events = network_check_poll_events;
+    network_dev.loop_step = network_loop_step;
+    network_dev.loop_step_threaded = false;
+    return device_run(&network_dev, mnt_point,
+            FS_TYPE_ANNOUNIMOUS | FS_TYPE_CHAR, 0666, true);
+}
+
+#ifdef __wasm__
+int ewok_service_init(void) {
+    strcpy(ETHER_TAP_IP_ADDR, "10.0.2.15");
+    strcpy(ETHER_TAP_NETMASK, "255.255.255.0");
+    strcpy(DEFAULT_GATEWAY, "10.0.2.2");
+    ETHER_TAP_USE_DHCP = false;
+    int ret = netd_start("/dev/net0", "/dev/eth0");
+    if(ret == 0)
+        klog("netd.wasm: native IPv4/TCP/UDP stack ready on 127.0.0.1 and 10.0.2.15\n");
+    return ret;
+}
+
+int ewok_service_step(void) {
+    intr_step();
+    return 0;
+}
+#else
 int main(int argc, char** argv) {
     const char* mnt_point = argc > 1 ? argv[1]: "/dev/net0";
     const char* net_dev = argc > 2 ? argv[2]: "/dev/eth0";
-    uint8_t mac[6];
 
     if (argc > 3) {
         if (argc < 6) {
@@ -327,28 +378,6 @@ int main(int argc, char** argv) {
         ETHER_TAP_USE_DHCP = false;
     }
 
-    vdevice_t dev;
-    memset(&dev, 0, sizeof(vdevice_t));
-    strcpy(dev.desc, "networkd");
-
-    pthread_mutex_init(&task_list_lock, NULL);
-    start_task();
-    strcpy(ETHER_TAP_NAME, net_dev);
-    if(setup() != 0) {
-        pthread_mutex_destroy(&task_list_lock);
-        return -1;
-    }
-    
-    dev.fcntl = network_fcntl;
-    dev.open = network_open;
-    dev.dup = network_dup;
-    dev.read = network_read;
-    dev.write = network_write;
-    dev.close = network_close;
-    dev.cmd = network_devcmd;
-    dev.check_poll_events = network_check_poll_events;
-    dev.loop_step = network_loop_step;
-    dev.loop_step_threaded = false;
     /*
      * IPC_MULTI_TASK: handlers run concurrently on the kernel worker pool
      * and never touch the main context, which is left free to drive the
@@ -358,7 +387,8 @@ int main(int argc, char** argv) {
      * vdevice framework); blocking socket ops never park a pool worker --
      * they return VFS_ERR_RETRY and are re-armed by stack wakeups.
      */
-    device_run(&dev, mnt_point, FS_TYPE_ANNOUNIMOUS | FS_TYPE_CHAR, 0666, true);
+    netd_start(mnt_point, net_dev);
     pthread_mutex_destroy(&task_list_lock);
     return 0;
 }
+#endif

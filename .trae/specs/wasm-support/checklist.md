@@ -1,0 +1,5 @@
+- [x] `machine.browser/kernel/bsp/` exists and contains required files.
+- [x] `machine.browser/kernel/Makefile` builds `kernel.wasm`. (Verified with wasm-ld).
+- [x] `kernel/platform/wasm` exists and compiles correctly. (Verified build).
+- [x] `machine.browser/index.html` loads `kernel/kernel.wasm`.
+- [ ] Browser console shows "Hello from EwokOS" (or similar startup message). (Please verify at http://localhost:8000)

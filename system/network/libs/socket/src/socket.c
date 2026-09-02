@@ -4,6 +4,7 @@
 #include <arpa/inet.h>
 #include <fcntl.h>
 #include <ewoksys/vdevice.h>
+#include <ewoksys/klog.h>
 #include <errno.h>
 #include <unistd.h>
 #include <stdlib.h>

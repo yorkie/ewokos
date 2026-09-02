@@ -210,6 +210,12 @@ int32_t handle_shell_cmd(const char* cmd) {
         _terminated = true;
         return 0;
     }
+    else if(strcmp(cmd, "pwd") == 0) {
+        char cwd[FS_FULL_NAME_MAX];
+        if(getcwd(cwd, sizeof(cwd)) != NULL)
+            printf("%s\n", cwd);
+        return 0;
+    }
     else if(strcmp(cmd, "cd") == 0) {
         const char* home = getenv("HOME");
         if(home == NULL || home[0] == 0)

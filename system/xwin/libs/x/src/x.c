@@ -308,9 +308,16 @@ int x_set_app_name(x_t* x, const char* fname) {
 }
 
 int x_exec(const char* fname) {
+#ifdef __wasm__
+    /* The browser runtime owns the one-instance-per-module lifecycle.  Route
+     * every launch through it so a hidden app can receive a fresh file
+     * argument and make its existing window visible again. */
+    extern int32_t wasm_host_spawn_command(const char *command,
+            uint32_t length);
+    return wasm_host_spawn_command(fname, strlen(fname));
+#else
     if(x_set_top_app(fname) == 0)
         return 0;
-
     int pid = fork();
     if(pid == 0) {
         proc_detach();
@@ -318,6 +325,7 @@ int x_exec(const char* fname) {
         proc_exec(fname); 
     }
     return 0;
+#endif
 }
 
 const char* x_get_theme_fname(const char* prefix,
@@ -360,6 +368,41 @@ const char* x_get_res_name(const char* name, char* ret, uint32_t len) {
     return ret;
 }
 
+static int x_dispatch_once(x_t* x, int xserv_pid, void* loop_data,
+        bool block) {
+    xevent_t xev;
+    int res = -1;
+    if(x_pop_event(x, &xev))
+        res = 0;
+    else
+        res = x_get_event(x, xserv_pid, &xev, block);
+
+    if(res == 0) {
+        xwin_t* xwin = x_find_win_by_handle(x, xev.win);
+        if(xwin == NULL ||
+                (xwin != x->main_win && xwin != x->prompt_win) ||
+                xwin->fd < 0 || xwin->xinfo == NULL)
+            return 0;
+        if(xev.type == XEVT_WIN)
+            xwin_event_handle(xwin, &xev);
+        else if(xwin->on_event != NULL &&
+                (xwin->x->prompt_win == NULL || xwin->x->prompt_win == xwin))
+            xwin->on_event(xwin, &xev);
+    }
+    else if(x->on_loop != NULL) {
+        x->on_loop(loop_data);
+    }
+    return res;
+}
+
+int x_run_once(x_t* x, void* loop_data) {
+    int xserv_pid = dev_get_pid("/dev/x");
+    if(xserv_pid < 0 || x == NULL || x->main_win == NULL ||
+            x->main_win->xinfo == NULL)
+        return -1;
+    return x_dispatch_once(x, xserv_pid, loop_data, false);
+}
+
 int  x_run(x_t* x, void* loop_data) {
     int xserv_pid = dev_get_pid("/dev/x");
     if(xserv_pid < 0) {
@@ -375,35 +418,8 @@ int  x_run(x_t* x, void* loop_data) {
     x_set_app_name(x, getenv("X_APP_NAME"));
 
     bool block = x->on_loop==NULL ? true:false;
-    xevent_t xev;
     while(!x->terminated) {
-        int res = -1;
-        if(x_pop_event(x, &xev)) {
-            res = 0;
-        }
-        else {
-            res = x_get_event(x, xserv_pid, &xev, block);
-        }
-        if(res == 0) {
-            xwin_t* xwin = x_find_win_by_handle(x, xev.win);
-            if(xwin != NULL) {
-                if(xwin != x->main_win && xwin != x->prompt_win)
-                    continue;
-                if(xwin->fd < 0 || xwin->xinfo == NULL)
-                    continue;
-                if(xev.type == XEVT_WIN) {
-                    xwin_event_handle(xwin, &xev);
-                }	
-                else if(xwin->on_event != NULL) {
-                    if(xwin->x->prompt_win == NULL ||
-                            xwin->x->prompt_win == xwin) //has prompt win, can't response
-                        xwin->on_event(xwin, &xev);
-                }
-            }
-        }
-        else if(x->on_loop != NULL) {
-            x->on_loop(loop_data);
-        }
+        x_dispatch_once(x, xserv_pid, loop_data, block);
     }
     dev_cntl_by_pid(xserv_pid, X_DCNTL_QUIT, NULL, NULL);
     return 0;

@@ -68,7 +68,9 @@
 #define SHM_MAX_SIZE                  (128*MB)
 #define SHM_BASE                      (USER_STACK_BOTTOM - SHM_MAX_SIZE)
 
+#ifndef KMALLOC_VM_SIZE
 #define KMALLOC_VM_SIZE               (64*MB)
+#endif
 #define KMALLOC_VM_BASE               (SHM_BASE - KMALLOC_VM_SIZE)
 
 #define get64(addr) (*((volatile uint64_t *)(addr)))

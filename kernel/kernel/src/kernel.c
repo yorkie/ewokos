@@ -31,6 +31,9 @@ kernel_info_t _kernel_info;
  * kernel image, so no extra low alias is needed there.
  */
 static void __attribute__((optimize("O0"))) copy_interrupt_table(void) {
+#ifdef __wasm__
+    return;
+#else
     uint32_t *vsrc = &interrupt_table_start;
     //uint32_t *vdst = (uint32_t*)INTERRUPT_VECTOR_BASE;
     uint32_t *vdst = (uint32_t*)(_sys_info.vector_base);
@@ -39,6 +42,7 @@ static void __attribute__((optimize("O0"))) copy_interrupt_table(void) {
     while(vsrc < &interrupt_table_end) {
         *vdst++ = *vsrc++;
     }
+#endif
 }
 
 static void set_kernel_vm(page_dir_entry_t* vm) {
@@ -368,16 +372,23 @@ static void show_config(void) {
 }
 
 int32_t load_init_proc(void);
+#ifdef __wasm__
+extern void wasm_host_ready(void);
+#endif
 void _kernel_entry_c(void) {
 #ifdef __x86_64__
     __asm__ volatile("cli");
 #endif
+    // WebAssembly instantiation zeroes linear memory before data segments are
+    // installed, so there is no linker-defined BSS range to clear here.
+#ifndef __wasm__
     //clear bss
 #if defined(PAGE_SIZE_16K) || defined(PAGE_SIZE_64K)
     for(volatile char* p = _bss_start; p < (volatile char*)_bss_end; p++)
         *p = 0;
 #else
     memset(_bss_start, 0, (size_t)(_bss_end - _bss_start));
+#endif
 #endif
     sys_info_init();
 
@@ -439,6 +450,18 @@ void _kernel_entry_c(void) {
     if(procs_init() != 0)
         halt();
     //printf("[ok] (%d)\n", _kernel_config.max_proc_num);
+
+#ifdef __wasm__
+    /*
+     * Native ELF entry restores a CPU register frame, which WebAssembly does
+     * not expose.  Signal the browser coordinator after the real kernel core
+     * is initialized; wasm user modules are entered cooperatively by that
+     * coordinator instead of pretending that an ARM context can be restored.
+     */
+    printf("kernel: wasm core ready\n");
+    wasm_host_ready();
+    return;
+#endif
 
     printf("kernel: loading init ... ");
     if(load_init_proc() != 0)  {

@@ -6,11 +6,17 @@
 #include <ewoksys/proc.h>
 #include <ewoksys/vdevice.h>
 #include <ewoksys/kernel_tic.h>
+#include <ewoksys/klog.h>
 #include <ntpc/ntpc.h>
 
 static uint32_t _time_sec_init = 0;
 static time_t _time_init = 0;
 static uint32_t _next_sync_sec = 0;
+
+#ifdef __wasm__
+__attribute__((import_module("env"), import_name("wasm_host_unix_time_sec")))
+extern uint32_t wasm_host_unix_time_sec(void);
+#endif
 
 #define TIME_SYNC_INTERVAL_SEC 600
 #define TIME_SYNC_RETRY_MIN_SEC 5 
@@ -62,6 +68,24 @@ static int time_loop(vdevice_t* dev, void* p) {
     return 0;
 }
 
+#ifdef __wasm__
+static vdevice_t wasm_time_dev;
+
+int ewok_service_init(void) {
+    memset(&wasm_time_dev, 0, sizeof(wasm_time_dev));
+    strcpy(wasm_time_dev.desc, "time");
+    wasm_time_dev.dev_cntl = time_dcntl;
+    _time_init = (time_t)wasm_host_unix_time_sec();
+    kernel_tic(&_time_sec_init, NULL);
+    _next_sync_sec = _time_sec_init + TIME_SYNC_INTERVAL_SEC;
+    klog("timed.wasm: realtime clock initialized from browser host\n");
+    return device_run(&wasm_time_dev, "/dev/time", FS_TYPE_CHAR, 0666, false);
+}
+
+int ewok_service_step(void) {
+    return 0;
+}
+#else
 int main(int argc, char** argv) {
     const char* mnt_point = "/dev/time";
     vdevice_t dev;
@@ -73,3 +97,4 @@ int main(int argc, char** argv) {
     device_run(&dev, mnt_point, FS_TYPE_CHAR, 0666, false);
     return 0;
 }
+#endif

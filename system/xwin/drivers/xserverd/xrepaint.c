@@ -294,6 +294,24 @@ void x_repaint(x_t* x, uint32_t display_index) {
                 win->shadow_valid = false; //the bands must be blended fresh
             }
 
+            /* Damage accumulated so far was painted by windows below this
+               one. This includes frame-only changes such as losing focus,
+               which do not pass through win_dirty()/mark_dirty(). If an
+               upper window overlaps that damage it must be recomposited in
+               this same bottom-to-top pass, otherwise the lower frame is
+               briefly visible through it until the upper client's next
+               update (animated windows make that look like repeated
+               front/back flashing). */
+            if(!display->dirty && !win->dirty) {
+                for(uint32_t i = 0; i < dirty_num; i++) {
+                    grect_t overlap = win->xinfo->winr;
+                    if(grect_insect(&dirty_rects[i], &overlap)) {
+                        win->dirty = true;
+                        break;
+                    }
+                }
+            }
+
             if(win->dirty || win->frame_dirty) {
                 /* fully covered by an opaque window above: the covering
                    window paints over it later in this bottom-to-top pass,

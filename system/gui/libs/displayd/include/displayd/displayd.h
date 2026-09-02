@@ -31,6 +31,13 @@ extern int fbdisplayd_run(fbdisplayd_t* fbdisplayd, const char* mnt_name,
     const char* conf_file,
     uint32_t display_index);
 
+#ifdef __wasm__
+extern int fbdisplayd_wasm_start(fbdisplayd_t* fbdisplayd,
+    const char* mnt_name, uint32_t def_w, uint32_t def_h,
+    const char* conf_file, uint32_t display_index);
+extern int fbdisplayd_resize(uint32_t width, uint32_t height, uint8_t depth);
+#endif
+
 /* Generic flush_rotate implementation: rotates the un-rotated client
  * frame (32bpp) into a cacheable intermediate buffer, then copies to
  * fbinfo->pointer with a sequential memcpy so Normal-NC write-combine

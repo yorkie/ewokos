@@ -241,6 +241,59 @@ int xserver_win_close(vdevice_t* dev, int fd, int from_pid, uint32_t node, fsinf
   pointer at ~125Hz instead of the configured frame fps*/
 #define X_DRAG_STEP_MS 8
 
+static void xserver_refresh_displays(x_t* x) {
+    for(uint32_t i = 0; i < DISP_MAX; i++) {
+        x_display_t* display = &x->displays[i];
+        if(!display->active || display->g == NULL)
+            continue;
+
+        int32_t old_width = display->g->w;
+        int32_t old_height = display->g->h;
+        graph_t* graph = display_fetch_graph(&display->display);
+        if(graph == NULL ||
+                (graph->w == old_width && graph->h == old_height))
+            continue;
+
+        display->g_display = graph;
+        display->g = graph;
+        display->g_shm_id = display->display.shm_id;
+        display->desktop_rect.x = 0;
+        display->desktop_rect.y = 0;
+        display->desktop_rect.w = graph->w;
+        display->desktop_rect.h = graph->h;
+        display->pending_flush = false;
+        display->flush_inflight = false;
+
+        if(i == x->current_display) {
+            if(x->cursor.cpos.x >= graph->w)
+                x->cursor.cpos.x = graph->w - 1;
+            if(x->cursor.cpos.y >= graph->h)
+                x->cursor.cpos.y = graph->h - 1;
+        }
+
+        /* Maximized and fullscreen clients own workspace buffers whose size
+           follows the display. Let each client rebuild its buffers through
+           the normal resize event path. */
+        xwin_t* win = x->win_head;
+        while(win != NULL) {
+            if(win->xinfo != NULL && win->ready &&
+                    win->xinfo->display_index == i &&
+                    (win->xinfo->state == XWIN_STATE_MAX ||
+                     win->xinfo->state == XWIN_STATE_FULL_SCREEN)) {
+                xevent_t event;
+                memset(&event, 0, sizeof(event));
+                event.type = XEVT_WIN;
+                event.value.window.event = XEVT_WIN_RESIZE;
+                event.value.window.v0 = graph->w - win->xinfo->wsr.w;
+                event.value.window.v1 = graph->h - win->xinfo->wsr.h;
+                x_push_event(x, win, &event);
+            }
+            win = win->next;
+        }
+        x_dirty(x, i);
+    }
+}
+
 int xserver_step(vdevice_t* dev, void* p) {
     (void)dev;
     x_t* x = (x_t*)p;
@@ -256,6 +309,8 @@ int xserver_step(vdevice_t* dev, void* p) {
         x_server_lock_enter();
     else
         ipc_disable();
+
+    xserver_refresh_displays(x);
 
     if(x->xwm_changed) {
         if(check_xwm(x)) {
@@ -318,9 +373,17 @@ int xserver_step(vdevice_t* dev, void* p) {
         quantum = X_DRAG_STEP_MS;
 
     uint32_t gap = (uint32_t)(kernel_tic_ms(0) - tik);
+#ifdef __wasm__
+    /* requestAnimationFrame is the cooperative scheduler. Sleeping here
+     * would context-switch in the middle of a wasm export and require stack
+     * continuation support that core WebAssembly does not provide. */
+    (void)gap;
+    (void)quantum;
+#else
     if(gap < quantum) {
         gap = quantum - gap;
         proc_usleep(gap*1000);
     }
+#endif
     return 0;
 }

@@ -1,4 +1,5 @@
 #include <keyb/keyb.h>
+#include <ewoksys/kernel_tic.h>
 
 #ifdef __cplusplus
 extern "C" {

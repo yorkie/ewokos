@@ -238,7 +238,13 @@ void intr_step(void) {
          * the old dedicated flusher thread.
          */
         task_flush_wakeups();
+#ifndef __wasm__
         usleep(sleep_us);
+#else
+        /* The browser scheduler owns pacing. Sleeping here would retain the
+         * Wasm stack and block every other EwokOS process on the UI thread. */
+        (void)sleep_us;
+#endif
     }
     return;
 }

@@ -1,5 +1,8 @@
 #include "graph/graph_png.h"
 #include <png.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -367,4 +370,3 @@ done:
 #ifdef __cplusplus
 }
 #endif
-

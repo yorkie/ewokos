@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>EwokOS Browser Runtime</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      background: #070b09;
+      color: #dbe8df;
+    }
+    * { box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; }
+    body { display: grid; grid-template-rows: 46px minmax(0, 1fr); }
+    .topbar {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      min-width: 0;
+      padding: 0 12px;
+      background: rgba(13, 20, 16, .98);
+      border-bottom: 1px solid #27352c;
+      box-shadow: 0 1px 12px rgba(0, 0, 0, .28);
+      z-index: 2;
+    }
+    .brand {
+      flex: none;
+      font: 650 15px/1 system-ui, sans-serif;
+      letter-spacing: .01em;
+      color: #f0f6f2;
+    }
+    .tabs { display: flex; align-self: stretch; gap: 2px; }
+    .tab {
+      position: relative;
+      min-width: 86px;
+      padding: 0 15px;
+      border: 0;
+      background: transparent;
+      color: #93a89a;
+      font: 600 13px/1 system-ui, sans-serif;
+      cursor: pointer;
+    }
+    .tab:hover { color: #dce9e0; background: rgba(255,255,255,.035); }
+    .tab[aria-selected="true"] { color: #8ce7a6; }
+    .tab[aria-selected="true"]::after {
+      content: "";
+      position: absolute;
+      left: 13px;
+      right: 13px;
+      bottom: 0;
+      height: 2px;
+      border-radius: 2px 2px 0 0;
+      background: #54d67b;
+    }
+    #status {
+      min-width: 0;
+      margin-left: auto;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: #e0b75c;
+      font-size: 12px;
+    }
+    #status[data-state="ready"] { color: #72d891; }
+    #input-status {
+      flex: none;
+      color: #718479;
+      font-size: 11px;
+      white-space: nowrap;
+    }
+    .content { position: relative; min-width: 0; min-height: 0; background: #000; }
+    .panel {
+      position: absolute;
+      inset: 0;
+      min-width: 0;
+      min-height: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+    .panel.active { visibility: visible; pointer-events: auto; }
+    #gui-panel { overflow: hidden; }
+    #framebuffer {
+      display: block;
+      width: 100%;
+      height: 100%;
+      border: 0;
+      outline: none;
+      background: #000;
+      image-rendering: auto;
+    }
+    #terminal-panel {
+      display: grid;
+      grid-template-rows: minmax(0, 1fr) auto;
+      background: #07100a;
+    }
+    #console {
+      min-width: 0;
+      min-height: 0;
+      margin: 0;
+      overflow: auto;
+      padding: 18px 20px;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      color: #a8e9b9;
+      font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+    #terminal-form {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      padding: 10px 14px;
+      border-top: 1px solid #213128;
+      background: #0b1510;
+    }
+    .prompt { color: #58dc80; font-weight: 700; }
+    #terminal-input {
+      min-width: 0;
+      flex: 1;
+      border: 0;
+      outline: 0;
+      padding: 5px 0;
+      background: transparent;
+      color: #e8f5ec;
+      font: inherit;
+      caret-color: #70e192;
+    }
+    #terminal-submit {
+      border: 1px solid #31503d;
+      border-radius: 5px;
+      padding: 5px 11px;
+      background: #14251a;
+      color: #87e7a2;
+      font: 600 12px/1.2 system-ui, sans-serif;
+      cursor: pointer;
+    }
+    #terminal-submit:hover { background: #1a3022; border-color: #477457; }
+    @media (max-width: 860px) {
+      #input-status { display: none; }
+      .brand { font-size: 14px; }
+    }
+    @media (max-width: 560px) {
+      .brand { display: none; }
+      .tab { min-width: 76px; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">EwokOS · WebAssembly</div>
+    <nav class="tabs" role="tablist" aria-label="EwokOS view">
+      <button class="tab" id="gui-tab" type="button" role="tab"
+        aria-selected="true" aria-controls="gui-panel" data-view="gui">GUI</button>
+      <button class="tab" id="terminal-tab" type="button" role="tab"
+        aria-selected="false" aria-controls="terminal-panel" data-view="terminal">Terminal</button>
+    </nav>
+    <div id="status">Booting kernel.wasm…</div>
+    <div id="input-status">Keyboard 0 · pointer 0</div>
+  </header>
+  <main class="content">
+    <section class="panel active" id="gui-panel" role="tabpanel"
+      aria-labelledby="gui-tab">
+      <canvas id="framebuffer" width="640" height="480" tabindex="0" hidden
+        aria-label="EwokOS framebuffer"></canvas>
+    </section>
+    <section class="panel" id="terminal-panel" role="tabpanel"
+      aria-labelledby="terminal-tab">
+      <pre id="console" aria-label="EwokOS terminal output"></pre>
+      <form id="terminal-form" autocomplete="off">
+        <span class="prompt" aria-hidden="true">$</span>
+        <input id="terminal-input" type="text" spellcheck="false"
+          aria-label="Terminal command" placeholder="输入命令并回车">
+        <button id="terminal-submit" type="submit">Run</button>
+      </form>
+    </section>
+  </main>
+  <script>
+    (() => {
+      const tabs = [...document.querySelectorAll(".tab")];
+      const selectView = (view) => {
+        for (const tab of tabs) {
+          const selected = tab.dataset.view === view;
+          tab.setAttribute("aria-selected", String(selected));
+          document.querySelector(`#${tab.getAttribute("aria-controls")}`)
+            .classList.toggle("active", selected);
+        }
+        if (view === "terminal") document.querySelector("#terminal-input").focus();
+        else document.querySelector("#framebuffer").focus();
+        document.dispatchEvent(new CustomEvent("ewok-view-change", { detail: { view } }));
+      };
+      for (const tab of tabs) tab.addEventListener("click", () => selectView(tab.dataset.view));
+    })();
+  </script>
+  <script src="runtime.js"></script>
+  <script>
+    bootEwokOS().catch((error) => {
+      document.querySelector("#status").textContent =
+        `Boot failed: ${error.stack || error.message}`;
+      console.error(error);
+    });
+  </script>
+</body>
+</html>

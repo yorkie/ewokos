@@ -187,6 +187,26 @@ static int timer_loop(vdevice_t* dev, void* p) {
     }
 }
 
+#ifdef __wasm__
+static vdevice_t wasm_timer_dev;
+
+int ewok_service_init(void) {
+    _intr_list = NULL;
+    _id = 1;
+    _min_timer_usec = 0;
+    memset(&wasm_timer_dev, 0, sizeof(wasm_timer_dev));
+    strcpy(wasm_timer_dev.desc, "timer");
+    wasm_timer_dev.dev_cntl = timer_dcntl;
+    wasm_timer_dev.cmd = timer_cmd;
+    return device_run(&wasm_timer_dev, "/dev/timer", FS_TYPE_CHAR, 0666,
+            false);
+}
+
+int ewok_service_step(void) {
+    interrupt_handle(0, 0);
+    return 0;
+}
+#else
 int main(int argc, char** argv) {
     const char* mnt_point = "/dev/timer";
     _intr_list = NULL;
@@ -203,3 +223,4 @@ int main(int argc, char** argv) {
     device_run(&dev, mnt_point, FS_TYPE_CHAR, 0666, false);
     return 0;
 }
+#endif

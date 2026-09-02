@@ -333,12 +333,18 @@ static void handle(int from_pid, int cmd, proto_t* in, proto_t* out, void* p) {
     }
 }
 
-void xwm_run(xwm_t* xwm) {
+int xwm_start(xwm_t* xwm) {
     memset(&_xwm_graph, 0, sizeof(xwm_graph_t));
-    ipc_serv_run(handle, NULL, xwm, IPC_NON_BLOCK);
+    if(ipc_serv_run(handle, NULL, xwm, IPC_NON_BLOCK) != 0)
+        return -1;
 
     setenv("XWM", "true");
-    dev_cntl("/dev/x", X_DCNTL_SET_XWM, NULL, NULL);
+    return dev_cntl("/dev/x", X_DCNTL_SET_XWM, NULL, NULL);
+}
+
+void xwm_run(xwm_t* xwm) {
+    if(xwm_start(xwm) != 0)
+        return;
 
     while(true) {
         usleep(100000);

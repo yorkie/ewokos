@@ -32,23 +32,45 @@ static void vfsd_init(void) {
     strcpy(_vfs_root->fsinfo.name, "/");
 }
 
-int main(int argc, char** argv) {
-    (void)argc;
-    (void)argv;
-
+static int vfs_service_init(void) {
     if(ipc_serv_reg(IPC_SERV_VFS) != 0) {
         klog("reg vfs ipc_serv error!\n");
         return -1;
     }
 
     vfsd_init();
+#ifndef __wasm__
     start_driver_async_worker();
+#endif
     /*
      * IPC_MULTI_TASK: every request is served by its own kernel-spawned
      * worker thread inside this proc; all shared state is guarded by
      * _vfs_lock (see the lock rules in vfsd.h).
      */
+#ifdef __wasm__
+    ipc_serv_run(handle, clear_pending_zombies, NULL, IPC_NON_BLOCK);
+#else
     ipc_serv_run(handle, clear_pending_zombies, NULL, IPC_MULTI_TASK);
+#endif
+    return 0;
+}
+
+#ifdef __wasm__
+int ewok_service_init(void) {
+    return vfs_service_init();
+}
+
+int ewok_service_step(void) {
+    clear_pending_zombies(NULL);
+    return 0;
+}
+#else
+int main(int argc, char** argv) {
+    (void)argc;
+    (void)argv;
+
+    if(vfs_service_init() != 0)
+        return -1;
 
     while(true) {
         /*
@@ -64,3 +86,4 @@ int main(int argc, char** argv) {
     free(_proc_fds_table);
     return 0;
 }
+#endif

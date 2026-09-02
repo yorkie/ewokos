@@ -5,6 +5,8 @@
 kernel*.img
 root*.img
 kernel*.elf
+kernel*.wasm
+machine.browser/user/*.wasm
 kernel*.asm
 system/build
 .vscode/settings.json

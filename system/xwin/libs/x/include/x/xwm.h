@@ -48,6 +48,7 @@ typedef struct {
 } xwm_t;
 
 void xwm_run(xwm_t* xwm);
+int xwm_start(xwm_t* xwm);
 
 #ifdef __cplusplus
 }

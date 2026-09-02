@@ -98,12 +98,13 @@ static void mouse_cxy(x_t* x, uint32_t display_index, int32_t rx, int32_t ry) {
 
 static void mouse_xwin_handle(x_t* x, xwin_t* win, int pos, xevent_t* ev) {
     if(ev->state ==  MOUSE_STATE_DOWN) {
-        if(win != x->win_tail) {
+        if(win != x->win_tail)
             xwin_top(x, win);
-        }
-        else {
-            try_focus(x, win);
-        }
+        /* Raising and focusing are one user action. Keeping these in an
+           if/else left a raised window visually unfocused for one composite
+           frame; the later focus request then produced a second frame and
+           made overlapping windows flash back and forth. */
+        try_focus(x, win);
         
         if(pos == FRAME_R_TITLE) {//window title 
             x->current.win_drag = win;

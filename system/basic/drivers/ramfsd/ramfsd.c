@@ -126,6 +126,20 @@ static int ramfs_unlink(vdevice_t* dev, fsinfo_t* info, const char* fname, void*
     return vfs_del_node(info->node);
 }
 
+#ifdef __wasm__
+static vdevice_t wasm_ramfs_dev;
+
+int ewok_service_init(void) {
+    memset(&wasm_ramfs_dev, 0, sizeof(wasm_ramfs_dev));
+    strcpy(wasm_ramfs_dev.desc, "ramfs");
+    wasm_ramfs_dev.read = ramfs_read;
+    wasm_ramfs_dev.write = ramfs_write;
+    wasm_ramfs_dev.unlink = ramfs_unlink;
+    return device_run(&wasm_ramfs_dev, "/tmp", FS_TYPE_DIR, 0777, false);
+}
+
+int ewok_service_step(void) { return 0; }
+#else
 int main(int argc, char** argv) {
     const char* mnt_point = argc > 1 ? argv[1]: "/tmp";
 
@@ -139,3 +153,4 @@ int main(int argc, char** argv) {
     device_run(&dev, mnt_point, FS_TYPE_DIR, 0777, false);
     return 0;
 }
+#endif

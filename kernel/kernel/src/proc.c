@@ -513,6 +513,16 @@ static void proc_shrink_mem(proc_t* proc, int32_t page_num) {
         return;
 
     int32_t i;
+#ifdef __wasm__
+    if(proc->space->heap_limit != 0) {
+        ewokos_addr_t floor = proc->space->malloc_base;
+        ewokos_addr_t bytes = (ewokos_addr_t)page_num * PAGE_SIZE;
+        if(bytes > proc->space->heap_size - floor)
+            bytes = proc->space->heap_size - floor;
+        proc->space->heap_size -= bytes;
+        return;
+    }
+#endif
     for (i = 0; i < page_num; i++) {
         ewokos_addr_t virtual_addr = proc->space->heap_size - PAGE_SIZE;
         unmap_page_ref(proc->space->vm, virtual_addr);
@@ -527,6 +537,25 @@ static void proc_shrink_mem(proc_t* proc, int32_t page_num) {
 static int32_t proc_expand_mem(proc_t *proc, int32_t page_num) {
     int32_t i;
     int32_t res = 0;
+
+#ifdef __wasm__
+    if(proc->space->heap_limit != 0) {
+        ewokos_addr_t bytes;
+        if(page_num <= 0)
+            return 0;
+        bytes = (ewokos_addr_t)page_num * PAGE_SIZE;
+        if(proc->space->heap_size + bytes < proc->space->heap_size ||
+                proc->space->heap_size + bytes > proc->space->heap_limit)
+            return -1;
+        /* The module arena is already an identity-mapped part of the shared
+         * WebAssembly memory.  Growing the break must retain that identity;
+         * remapping it to a kalloc page would make C and syscall translation
+         * observe different bytes. */
+        memset((void*)proc->space->heap_size, 0, bytes);
+        proc->space->heap_size += bytes;
+        return 0;
+    }
+#endif
 
     for (i = 0; i < page_num; i++) {
         void *page = kalloc_page();
@@ -1420,8 +1449,10 @@ void* proc_malloc(proc_t* proc, int32_t size) {
     }
     else {
         //printf("kproc expand pages: %d, size: %d\n", pages, size);
-        if(proc_expand_mem(proc, pages) != 0)
+        if(proc_expand_mem(proc, pages) != 0) {
+            proc->space->heap_used -= size;
             return NULL;
+        }
     }
     return (void*)proc->space->malloc_base;
 }
@@ -2068,6 +2099,7 @@ static int32_t proc_clone(proc_t* child, proc_t* parent) {
     }
     child->space->malloc_base = parent->space->malloc_base;
     child->space->rw_heap_base = parent->space->rw_heap_base;
+    child->space->heap_limit = parent->space->heap_limit;
     return 0;
 }
 
@@ -2319,6 +2351,18 @@ int32_t get_procs_num(void) {
     return res;
 }
 
+static ewokos_addr_t proc_reported_heap_size(const proc_t* proc) {
+    if(proc == NULL || proc->space == NULL)
+        return 0;
+    /* Bounded Wasm arenas use absolute linear-memory addresses for brk.
+     * procinfo_t.heap_size is a size, so remove the arena's load base before
+     * exposing it to ps/xprocs. Native processes keep the legacy value. */
+    if(proc->space->heap_limit != 0 &&
+            proc->space->heap_size >= proc->space->rw_heap_base)
+        return proc->space->heap_size - proc->space->rw_heap_base;
+    return proc->space->heap_size;
+}
+
 int32_t get_procs(int32_t num, procinfo_t* procs) {
     if(procs == NULL)
         return -1;
@@ -2334,7 +2378,7 @@ int32_t get_procs(int32_t num, procinfo_t* procs) {
                 p->info.state != ZOMBIE &&
                 !p->is_core_idle_proc) {
             memcpy(&procs[j], &p->info, sizeof(procinfo_t));
-            procs[j].heap_size = (p->space != NULL) ? p->space->heap_size : 0;
+            procs[j].heap_size = proc_reported_heap_size(p);
             j++;
         }
     }
@@ -2352,7 +2396,7 @@ int32_t get_proc(int32_t pid, procinfo_t *info) {
 
     proc_refresh_runtime_stats_internal(false, true, proc_account_now_usec());
     memcpy(info, &proc->info, sizeof(procinfo_t));
-    info->heap_size = proc->space->heap_size;
+    info->heap_size = proc_reported_heap_size(proc);
     proc_lock_leave();
     return 0;
 }
@@ -2663,7 +2707,17 @@ static int32_t renew_priority_counter(uint32_t usec) {
         }
 
         if(proc->info.state == READY) {
+#ifdef __wasm__
+            /*
+             * The process is already in its ready queue. proc_ready() would
+             * only scan the queue to rediscover that fact, once per quantum
+             * for every READY process, without changing its position.
+             */
+            proc->priority_count = proc->info.priority;
+            proc_kick_ready_core(proc);
+#else
             proc_ready(proc);
+#endif
         }
         else if(proc->info.state == RUNNING &&
                 get_current_core_proc(proc->info.core) == proc) {

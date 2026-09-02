@@ -13,6 +13,9 @@ graph_t* graph_image_new(const char* filename) {
         if(strcasecmp(ext, ".png") == 0) {
             return png_image_new(filename);
         }
+#ifdef __wasm__
+        return NULL;
+#else
         else if(strcasecmp(ext, ".jpg") == 0 || strcasecmp(ext, ".jpeg") == 0) {
             return jpeg_image_new(filename);
         }
@@ -41,12 +44,16 @@ graph_t* graph_image_new(const char* filename) {
                 return img;
             return svg_image_new(filename);
         }
+#endif
     }
     else {
         // No extension, try all formats
         graph_t* img = png_image_new(filename);
         if(img != NULL)
             return img;
+#ifdef __wasm__
+        return NULL;
+#else
         img = jpeg_image_new(filename);
         if(img != NULL)
             return img;
@@ -57,6 +64,7 @@ graph_t* graph_image_new(const char* filename) {
         if(img != NULL)
             return img;
         return svg_image_new(filename);
+#endif
     }
 }
 
@@ -125,6 +133,10 @@ graph_t* graph_image_new_from_data(enum graph_image_type type, const uint8_t* da
     switch (type) {
     case GRAPH_IMAGE_TYPE_PNG:
         return png_image_new_from_data(data, size);
+#ifdef __wasm__
+    default:
+        return NULL;
+#else
     case GRAPH_IMAGE_TYPE_JPEG:
         return jpeg_image_new_from_data(data, size);
     case GRAPH_IMAGE_TYPE_TGA:
@@ -135,6 +147,7 @@ graph_t* graph_image_new_from_data(enum graph_image_type type, const uint8_t* da
         return svg_image_new_from_data(data, size);
     default:
         return NULL;
+#endif
     }
 }
 

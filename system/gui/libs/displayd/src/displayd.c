@@ -3,6 +3,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <ewoksys/vfs.h>
+#include <ewoksys/klog.h>
 #include <ewoksys/syscall.h>
 #include <ewoksys/vdevice.h>
 #include <sys/shm.h>
@@ -74,12 +75,16 @@ static void draw_bg(graph_t* g) {
 
 static void default_splash(graph_t* g, const char* logo_fname) {
     draw_bg(g);
+#ifndef __wasm__
     graph_t* logo = graph_image_new(logo_fname);
     if(logo != NULL) {
         graph_blt_alpha(logo, 0, 0, logo->w, logo->h,
                 g, (g->w-logo->w)/2, (g->h-logo->h)/2, logo->w, logo->h, 0xff);
         graph_free(logo);
     }
+#else
+    (void)logo_fname;
+#endif
 }
 
 static graph_t* _rotate_g = NULL; /* cached rotate buffer, grown as needed */
@@ -354,9 +359,9 @@ static uint32_t flush(const disp_info_t* fbinfo, const disp_shm_t* shm, int rota
     int zoomed = is_zoomed();
     graph_t g;
     if(rotate == G_ROTATE_270 || rotate == G_ROTATE_90)
-        graph_init(&g, shm->shm, _zheight, _zwidth);
+        graph_init(&g, (const uint32_t*)shm->shm, _zheight, _zwidth);
     else
-        graph_init(&g, shm->shm, _zwidth, _zheight);
+        graph_init(&g, (const uint32_t*)shm->shm, _zwidth, _zheight);
     /*the client frame IS the display shm canvas: restore the canvas
       identity graph_init drops, so graph_scale_tof/graph_blt and the
       g2d scan-out push below can route it through /dev/g2d instead of
@@ -502,11 +507,73 @@ static int disp_shm_init(disp_shm_t* shm) {
     return 0;
 }
 
+static int disp_pixel_shm_replace(disp_shm_t* shm) {
+    if(shm == NULL || _zwidth <= 0 || _zheight <= 0)
+        return -1;
+    if((uint64_t)_zwidth * (uint64_t)_zheight > UINT32_MAX / 4)
+        return -1;
+
+    uint32_t sz = (uint32_t)_zwidth * (uint32_t)_zheight * 4;
+    bool contig = false;
+    int32_t id = shm_new_segment(0x4642444d, sz, true);
+    if(id > 0)
+        contig = true;
+    else
+        id = shm_new_segment(0x4642444d, sz, false);
+    if(id <= 0)
+        return -1;
+
+    uint8_t* pixels = shmat(id, 0, 0);
+    if(pixels == (void*)-1) {
+        shmctl(id, IPC_RMID, NULL);
+        return -1;
+    }
+    memset(pixels, 0, sz);
+
+    uint8_t* old_pixels = shm->shm;
+    int32_t old_id = shm->shm_id;
+    shm->shm = pixels;
+    shm->shm_id = id;
+    shm->shm_contig = contig;
+    shm->size = sz;
+    if(shm->ctrl != NULL)
+        memset(shm->ctrl, 0, sizeof(display_ctrl_t));
+    init_graph(shm);
+
+    if(old_pixels != NULL && old_pixels != (void*)-1)
+        shmdt(old_pixels);
+    if(old_id > 0)
+        shmctl(old_id, IPC_RMID, NULL);
+    return 0;
+}
+
 static void disp_get_info() {
     disp_info_t* info = _fbdisplayd->get_info();
     memcpy(&_fbinfo, info, sizeof(disp_info_t));
     _zwidth = _fbinfo.width / _zoom;
     _zheight = _fbinfo.height / _zoom;
+}
+
+int fbdisplayd_resize(uint32_t width, uint32_t height, uint8_t depth) {
+    if(_fbdisplayd == NULL || _cur_shm == NULL || width == 0 || height == 0)
+        return -1;
+
+    disp_info_t old_info = _fbinfo;
+    int32_t old_zwidth = _zwidth;
+    int32_t old_zheight = _zheight;
+    if(_fbdisplayd->init(width, height, depth) != 0)
+        return -1;
+    disp_get_info();
+    if(disp_pixel_shm_replace(_cur_shm) == 0)
+        return 0;
+
+    /* Keep the driver and the published shared buffer in agreement when
+       the new allocation cannot be satisfied. */
+    _fbdisplayd->init(old_info.width, old_info.height, old_info.depth);
+    _fbinfo = old_info;
+    _zwidth = old_zwidth;
+    _zheight = old_zheight;
+    return -1;
 }
 
 static int disp_dev_cntl(vdevice_t* dev, int from_pid, int cmd, proto_t* in, proto_t* ret, void* p) {
@@ -519,9 +586,7 @@ static int disp_dev_cntl(vdevice_t* dev, int from_pid, int cmd, proto_t* in, pro
         int w = proto_read_int(in);
         int h = proto_read_int(in);
         int bpp = proto_read_int(in);
-        if(_fbdisplayd->init(w, h, bpp) != 0)
-            return -1;
-        disp_get_info();
+        return fbdisplayd_resize(w, h, bpp);
     }
     else if(cmd == DISPLAY_DEV_CNTL_GET_INFO) {
         if(_rotate == G_ROTATE_270 || _rotate == G_ROTATE_90)
@@ -824,3 +889,47 @@ int fbdisplayd_run(fbdisplayd_t* fbdisplayd, const char* mnt_name,
         shmdt(shm.ctrl);
     return 0;
 }
+
+#ifdef __wasm__
+/*
+ * Browser wasm services cannot keep stack locals alive after device_run()
+ * registers a non-blocking IPC server. Keep the display's shared-memory
+ * state and vdevice object in the module for the process lifetime.
+ */
+static disp_shm_t wasm_disp_shm;
+static vdevice_t wasm_disp_dev;
+
+int fbdisplayd_wasm_start(fbdisplayd_t* fbdisplayd, const char* mnt_name,
+        uint32_t def_w, uint32_t def_h, const char* conf_file,
+        uint32_t display_index) {
+    _fbdisplayd = fbdisplayd;
+    uint32_t w = def_w, h = def_h;
+    _zoom = 1.0;
+    uint8_t dep = 32;
+    _rotate = G_ROTATE_0;
+
+    int32_t index = displayman_add_dev("/dev/displayman", mnt_name,
+            display_index);
+    if(index < 0)
+        return -1;
+    read_config(conf_file, index, &w, &h, &dep, &_rotate, &_zoom);
+    memset(&wasm_disp_shm, 0, sizeof(wasm_disp_shm));
+    if(fbdisplayd->init(w, h, dep) != 0)
+        return -1;
+    disp_get_info();
+    if(disp_shm_init(&wasm_disp_shm) != 0)
+        return -1;
+
+    memset(&wasm_disp_dev, 0, sizeof(wasm_disp_dev));
+    strcpy(wasm_disp_dev.desc, "display");
+    wasm_disp_dev.shm = disp_shm;
+    wasm_disp_dev.flush = do_disp_flush;
+    wasm_disp_dev.fcntl = disp_fcntl;
+    wasm_disp_dev.dev_cntl = disp_dev_cntl;
+    wasm_disp_dev.read = disp_dev_read;
+    wasm_disp_dev.cmd = disp_dev_cmd;
+    wasm_disp_dev.extra_data = &wasm_disp_shm;
+    _cur_shm = &wasm_disp_shm;
+    return device_run(&wasm_disp_dev, mnt_name, FS_TYPE_CHAR, 0666, false);
+}
+#endif

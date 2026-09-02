@@ -1,4 +1,5 @@
 #include <ewoksys/vdevice.h>
+#include <ewoksys/klog.h>
 #include <ewoksys/vfs.h>
 #include <ewoksys/ipc.h>
 #include <ewoksys/ipc_serv.h>
@@ -1274,10 +1275,20 @@ int device_run(vdevice_t* dev, const char* mnt_point, int mnt_type, int mode, bo
     if(dev->loop_step != NULL)
         ipc_flags |= IPC_NON_BLOCK;
 
+#ifdef __wasm__
+    multi_task = false;
+#endif
     if(multi_task)
         ipc_flags |= IPC_MULTI_TASK;
 
     ipc_serv_run(handle, device_handled, dev, ipc_flags);
+
+#ifdef __wasm__
+    /* The browser scheduler re-enters registered IPC handlers through the
+     * module function table.  Keeping this native wait loop on the Wasm stack
+     * would monopolize the browser thread. */
+    return 0;
+#endif
 
     if(dev->loop_step != NULL && dev->loop_step_threaded) {
         if(pthread_create(&loop_tid, NULL, device_loop_thread_entry, dev) == 0) {

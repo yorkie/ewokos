@@ -19,6 +19,10 @@
 bool _script_mode = false;
 bool _terminated = false;
 
+#ifdef __wasm__
+extern int32_t wasm_host_spawn_command(const char *command, uint32_t length);
+#endif
+
 old_cmd_t* _history = NULL;
 old_cmd_t* _history_tail = NULL;
 
@@ -349,12 +353,121 @@ static int doargs(int argc, char* argv[]) {
     return optind;
 }
 
-int main(int argc, char* argv[]) {
+static void shell_common_init(void) {
     _script_mode = false;
     _history = NULL;
     _terminated = 0;
     setbuf(stdout, NULL);
     setbuf(stderr, NULL);
+
+    setenv("PATH", "/sbin:/bin:/bin/x");
+
+    const char* home = getenv("HOME");
+    if(home == NULL || home[0] == 0)
+        home = "/";
+    chdir(home);
+}
+
+#ifdef __wasm__
+extern int32_t wasm_host_tty_available(void);
+static str_t *wasm_cmdstr;
+static int wasm_script_fd = -1;
+static bool wasm_interactive;
+
+static void wasm_shell_run_line(bool script) {
+    char *cmd = wasm_cmdstr->cstr;
+    if(cmd[0] == 0)
+        return;
+    if(cmd[0] == '#')
+        return;
+    if(cmd[0] == '@')
+        cmd++;
+    else if(script)
+        printf("%s\n", cmd);
+    if(cmd[0] == 0)
+        return;
+    add_history(cmd);
+    if(handle_shell_cmd(cmd) == 0)
+        return;
+    int child_pid = wasm_host_spawn_command(cmd, strlen(cmd));
+    if(child_pid < 0)
+        printf("wasm: command is not registered: %s\n", cmd);
+}
+
+int ewok_service_init(void) {
+    shell_common_init();
+    int tty = open("/dev/tty0", O_RDWR);
+    if(tty < 0)
+        return -1;
+    dup2(tty, 0);
+    dup2(tty, 1);
+    dup2(tty, 2);
+    if(tty > 2)
+        close(tty);
+    wasm_cmdstr = str_new("");
+    if(wasm_cmdstr == NULL)
+        return -1;
+    wasm_script_fd = open("/etc/init.wasm.rd", O_RDONLY);
+    if(wasm_script_fd >= 0)
+        _script_mode = true;
+    else {
+        wasm_interactive = true;
+        printf("\nEwokOS interactive wasm shell\n");
+        prompt();
+    }
+    return 0;
+}
+
+int ewok_service_step(void) {
+    if(!wasm_interactive) {
+        int result = cmd_gets(wasm_script_fd, wasm_cmdstr);
+        if(result == 0 || wasm_cmdstr->len > 0) {
+            wasm_shell_run_line(true);
+            str_reset(wasm_cmdstr);
+            return 0;
+        }
+        close(wasm_script_fd);
+        wasm_script_fd = -1;
+        _script_mode = false;
+        wasm_interactive = true;
+        printf("\nEwokOS interactive wasm shell\n");
+        prompt();
+        return 0;
+    }
+    /* Browser input commonly arrives as a burst (a submitted command or
+     * several key events between animation frames). Drain a bounded batch so
+     * one character does not cost one full requestAnimationFrame. */
+    for(int budget = 0; budget < 64 && wasm_host_tty_available() > 0; budget++) {
+        char c;
+        int count = read(0, &c, 1);
+        if(count <= 0)
+            break;
+        if(c == '\r')
+            c = '\n';
+        if(c == KEY_BACKSPACE || c == CONSOLE_LEFT) {
+            if(wasm_cmdstr->len > 0) {
+                static const char erase[3] = { CONSOLE_LEFT, ' ', CONSOLE_LEFT };
+                write_all_retry(1, erase, sizeof(erase));
+                wasm_cmdstr->len--;
+                wasm_cmdstr->cstr[wasm_cmdstr->len] = 0;
+            }
+            continue;
+        }
+        write_all_retry(1, &c, 1);
+        if(c == '\n') {
+            wasm_shell_run_line(false);
+            str_reset(wasm_cmdstr);
+            prompt();
+        }
+        else if(c >= 0x20 && wasm_cmdstr->len < FS_FULL_NAME_MAX - 1) {
+            str_addc(wasm_cmdstr, c);
+        }
+    }
+    return 0;
+}
+#else
+int main(int argc, char* argv[]) {
+    shell_common_init();
 
     int argind = doargs(argc, argv);
 
@@ -366,12 +479,6 @@ int main(int argc, char* argv[]) {
         _script_mode = true;
     }
 
-    setenv("PATH", "/sbin:/bin:/bin/x");
-
-    const char* home = getenv("HOME");
-    if(home == NULL || home[0] == 0)
-        home = "/";
-    chdir(home);
     str_t* cmdstr = str_new("");
     while(_terminated == 0) {
         if(fd_in == 0) {
@@ -426,3 +533,4 @@ int main(int argc, char* argv[]) {
     free_history();
     return 0;
 }
+#endif

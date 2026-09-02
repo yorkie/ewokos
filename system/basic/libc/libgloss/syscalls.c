@@ -787,6 +787,7 @@ _Float128 __addtf3(_Float128 a, _Float128 b) {
 
 #endif
 
+#if !defined(__wasm__)
 void __sync_synchronize(void) {
 #ifdef __aarch64__
     __asm__ __volatile__("isb" ::: "memory");
@@ -796,6 +797,7 @@ void __sync_synchronize(void) {
     __asm__ __volatile__("" ::: "memory");
 #endif
 }
+#endif
 
 #if defined(__arm__)
 /*

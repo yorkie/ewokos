@@ -25,6 +25,13 @@ typedef struct {
 
 static proc_info_t *_proc_info_table = NULL;
 static uint32_t _max_proc_table_num = 0;
+#ifdef __wasm__
+static int _wasm_core_stage;
+
+int ewok_core_stage(void) {
+    return _wasm_core_stage;
+}
+#endif
 
 static void core_init(void) {
     int32_t i;
@@ -345,24 +352,62 @@ static void handle_event(kevent_t* kev) {
     }
 }
 
+static int core_service_init(void) {
+    core_init();
+#ifdef __wasm__
+    _wasm_core_stage = 1;
+#endif
+    _ipc_servs = hashmap_new(16);
+    if(_ipc_servs == NULL)
+        return -1;
+#ifdef __wasm__
+    _wasm_core_stage = 2;
+#endif
+
+    if(ipc_serv_run(handle_ipc, NULL, NULL, IPC_NON_BLOCK) != 0)
+        return -1;
+#ifdef __wasm__
+    _wasm_core_stage = 3;
+#endif
+    syscall0(SYS_CORE_READY);
+    return 0;
+}
+
+static int core_service_step(void) {
+    kevent_t kev;
+    if(syscall1(SYS_GET_KEVENT, (ewokos_addr_t)&kev) == 0) {
+        ipc_disable();
+        handle_event(&kev);
+        ipc_enable();
+        return 0;
+    }
+    return -1;
+}
+
+#ifdef __wasm__
+/*
+ * A browser cannot preserve a native C stack by swapping a saved program
+ * counter.  Keep the long-lived service state in globals and expose one
+ * bounded scheduling turn instead.  The browser coordinator calls step only
+ * while the EwokOS kernel reports this process runnable.
+ */
+int ewok_service_init(void) {
+    return core_service_init();
+}
+
+int ewok_service_step(void) {
+    return core_service_step();
+}
+#else
 int main(int argc, char** argv) {
     (void)argc;
     (void)argv;
 
-    core_init();
-    _ipc_servs = hashmap_new(16);
-
-    ipc_serv_run(handle_ipc, NULL, NULL, IPC_NON_BLOCK);
-    syscall0(SYS_CORE_READY);
+    if(core_service_init() != 0)
+        return -1;
 
     while(1) {
-        kevent_t kev;
-        if(syscall1(SYS_GET_KEVENT, (ewokos_addr_t)&kev) == 0) {
-            ipc_disable();
-            handle_event(&kev);
-            ipc_enable();
-        }
-        else
+        if(core_service_step() != 0)
             proc_usleep(50000);
     }
 
@@ -370,3 +415,4 @@ int main(int argc, char** argv) {
     free(_proc_info_table);
     return 0;
 }
+#endif

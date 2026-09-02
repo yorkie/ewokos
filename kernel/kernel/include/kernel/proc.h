@@ -35,6 +35,8 @@ typedef struct {
 	ewokos_addr_t      rw_heap_base;
 	ewokos_addr_t      heap_size;
 	ewokos_addr_t      heap_used;
+	/* Optional upper bound for fixed-address runtimes such as WebAssembly. */
+	ewokos_addr_t      heap_limit;
 	int32_t            refs;
 	bool               ready_ping;
 	

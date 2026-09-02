@@ -141,7 +141,10 @@ inline void kernel_unlock(void) {
 #endif
 
 inline void wfi(void) {
-#ifdef ARM_V6
+#ifdef __wasm__
+    extern void wasm_host_wait(void);
+    wasm_host_wait();
+#elif defined(ARM_V6)
     __asm__("MOV r0, #0; MCR p15,0,R0,c7,c0,4");
 #elif defined(__x86_64__)
     __asm__ volatile("hlt");
@@ -151,7 +154,13 @@ inline void wfi(void) {
 }
 
 inline void halt(void) {
+#ifdef __wasm__
+    extern void wasm_host_halt(void);
+    wasm_host_halt();
+    __builtin_unreachable();
+#else
     while(1) {
         wfi();
     }
+#endif
 }

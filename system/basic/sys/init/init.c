@@ -13,6 +13,31 @@
 #include <ewoksys/wait.h>
 #include <dirent.h>
 
+#ifdef __wasm__
+
+extern int32_t wasm_host_spawn_command(const char *command, uint32_t length);
+static bool wasm_init_started;
+
+int ewok_service_init(void) {
+    if(((int16_t)getuid()) >= 0 || getpid() != 0) {
+        klog("process 'init' can only be loaded by the wasm kernel as pid 0!\n");
+        return -1;
+    }
+    syscall1(SYS_PROC_SET_CMD, (ewokos_addr_t)"/sbin/init");
+    klog("\n[init process started]\n");
+    return 0;
+}
+
+int ewok_service_step(void) {
+    static const char command[] = "/bin/shell /etc/init.wasm.rd";
+    if(wasm_init_started)
+        return 0;
+    wasm_init_started = true;
+    return wasm_host_spawn_command(command, sizeof(command) - 1) < 0 ? -1 : 0;
+}
+
+#else
+
 extern void* read_fs(const char* fname, int32_t* size);
 
 static int32_t exec_from_sd(const char* prog) {
@@ -115,3 +140,5 @@ int main(int argc, char** argv) {
     }
     return 0;
 }
+
+#endif

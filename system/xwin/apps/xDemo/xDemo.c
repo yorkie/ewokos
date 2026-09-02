@@ -52,9 +52,14 @@ static void xtest_init(void) {
     _xtest_info.mode = CIRCLE;
     _xtest_info.imgX = _xtest_info.imgY = 0;
 
+#ifdef __wasm__
+    _xtest_info.img_big = NULL;
+    _xtest_info.img_small = NULL;
+#else
     char buf[128];
     _xtest_info.img_big = graph_image_new(x_get_res_name("data/rokid.png", buf, sizeof(buf)-1));	
     _xtest_info.img_small = graph_image_new(x_get_res_name("data/rokid_small.png", buf, sizeof(buf)-1));	
+#endif
     x_get_theme(&_xtest_info.theme);
     _xtest_info.font = font_new(_xtest_info.theme.fontName, true);
 }
@@ -88,6 +93,17 @@ static void on_event(xwin_t* xwin, xevent_t* ev) {
 }
 
 static void on_repaint(xwin_t* xwin, graph_t* g) {
+#ifdef __wasm__
+    static uint32_t frame;
+    uint32_t accent = 0xff42a5f5u;
+    graph_fill_rect(g, 0, 0, g->w, g->h, 0xff17212bu);
+    graph_fill_round(g, 18, 18, g->w - 36, g->h - 36, 16, 0xff263747u);
+    graph_fill_circle(g, 54 + (frame++ % (uint32_t)(g->w - 108)),
+            g->h / 2, 18, accent);
+    graph_draw_text_font(g, 28, 30, "EwokOS xDemo on WebAssembly",
+            _xtest_info.font, _xtest_info.theme.fontSize, 0xffffffffu);
+    return;
+#else
     int gW = g->w;
     int gH = g->h;
     graph_t* img = gW > (_xtest_info.img_big->w*2) ? _xtest_info.img_big: _xtest_info.img_small;
@@ -223,6 +239,7 @@ static void on_repaint(xwin_t* xwin, graph_t* g) {
     graph_draw_text_font(g, _xtest_info.imgX+4, _xtest_info.imgY+img->h+4, str, 
             _xtest_info.font, _xtest_info.theme.fontSize, 0xff000000);
     draw_image(g, img);
+#endif
 }
 
 static bool _repaint = false;
@@ -240,6 +257,38 @@ static void _timerHandler(void) {
     _repaint = true;
 }
 
+#ifdef __wasm__
+static x_t _wasm_x;
+static xwin_t* _wasm_xwin;
+static uint64_t _wasm_last_frame;
+
+int ewok_service_init(void) {
+    x_init(&_wasm_x, NULL);
+    xtest_init();
+    _wasm_xwin = xwin_open(&_wasm_x, -1, 32, 32, 360, 220,
+            "xDemo.wasm", XWIN_STYLE_NORMAL);
+    if(_wasm_xwin == NULL)
+        return -1;
+    _wasm_xwin->on_resize = on_resize;
+    _wasm_xwin->on_event = on_event;
+    _wasm_xwin->on_repaint = on_repaint;
+    x_set_app_name(&_wasm_x, "/apps/xDemo/xDemo");
+    xwin_set_visible(_wasm_xwin, true);
+    return 0;
+}
+
+int ewok_service_step(void) {
+    if(_wasm_xwin == NULL)
+        return -1;
+    for(int i = 0; i < 8 && x_run_once(&_wasm_x, NULL) == 0; i++) {}
+    uint64_t now = kernel_tic_ms(0);
+    if(now - _wasm_last_frame >= 33) {
+        _wasm_last_frame = now;
+        xwin_repaint(_wasm_xwin);
+    }
+    return 0;
+}
+#else
 int main(int argc, char* argv[]) {
     (void)argc;
     (void)argv;
@@ -266,3 +315,4 @@ int main(int argc, char* argv[]) {
     xtest_free();
     return 0;
 } 
+#endif

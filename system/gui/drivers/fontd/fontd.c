@@ -497,7 +497,7 @@ static int doargs(int argc, char* argv[]) {
     return optind;
 }
 
-int main(int argc, char** argv) {
+static int fontd_start(int argc, char** argv, vdevice_t* dev) {
     _load_mode = FT_LOAD_TARGET_NORMAL;
     _hinting = FT_LOAD_NO_HINTING | FT_LOAD_NO_AUTOHINT;
     doargs(argc, argv);
@@ -505,15 +505,32 @@ int main(int argc, char** argv) {
     const char* mnt_point = "/dev/font";
     font_dev_init();
 
-    vdevice_t dev;
-    memset(&dev, 0, sizeof(vdevice_t));
-    strcpy(dev.desc, "font");
-    dev.dev_cntl = font_dev_cntl;
-    dev.cmd = font_cmd;
+    memset(dev, 0, sizeof(vdevice_t));
+    strcpy(dev->desc, "font");
+    dev->dev_cntl = font_dev_cntl;
+    dev->cmd = font_cmd;
 
     font_open(DEFAULT_SYSTEM_FONT, DEFAULT_SYSTEM_FONT_FILE);
 
-    device_run(&dev, mnt_point, FS_TYPE_CHAR, 0444, false);
-    font_dev_quit();
+    return device_run(dev, mnt_point, FS_TYPE_CHAR, 0444, false);
+}
+
+#ifdef __wasm__
+static vdevice_t _wasm_font_dev;
+
+int ewok_service_init(void) {
+    char* argv[] = { "fontd", NULL };
+    return fontd_start(1, argv, &_wasm_font_dev);
+}
+
+int ewok_service_step(void) {
     return 0;
 }
+#else
+int main(int argc, char** argv) {
+    vdevice_t dev;
+    int ret = fontd_start(argc, argv, &dev);
+    font_dev_quit();
+    return ret;
+}
+#endif

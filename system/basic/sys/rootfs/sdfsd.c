@@ -36,6 +36,13 @@
  *   and would otherwise deadlock waiting on a locked-out sdfsd worker.
  */
 static pthread_rwlock_t _fs_lock = {0};
+#ifdef __wasm__
+static int _wasm_sdfsd_stage;
+
+int ewok_sdfsd_stage(void) {
+    return _wasm_sdfsd_stage;
+}
+#endif
 
 static inline void fs_rdlock(void) {
     pthread_rwlock_rdlock(&_fs_lock);
@@ -657,9 +664,14 @@ static int sdext_unlink(vdevice_t* dev, fsinfo_t* info, const char* fname, void*
     return vfs_del_node(info->node);
 }
 
+#ifdef __wasm__
+int ewok_service_init(void) {
+    _wasm_sdfsd_stage = 1;
+#else
 int main(int argc, char** argv) {
     (void)argc;
     (void)argv;
+#endif
     if((int16_t)getuid() >= 0) {
         klog("this process can only loaded by kernel!\n");
         return -1;
@@ -668,6 +680,9 @@ int main(int argc, char** argv) {
     if(bsp_sd_init() != 0) {
         return -1;
     }
+#ifdef __wasm__
+    _wasm_sdfsd_stage = 2;
+#endif
 
     /* classify the filesystem before mounting: ext3 is preferred and
      * checked first, plain ext2 is served in compatible mode */
@@ -677,8 +692,11 @@ int main(int argc, char** argv) {
         sd_quit();
         return -1;
     }
+#ifdef __wasm__
+    _wasm_sdfsd_stage = 3;
+#endif
 
-    ext3_t ext3;
+    static ext3_t ext3;
     int32_t ret = ext3_init_ex2(&ext3, sd_read, sdext_sd_read_blocks, sd_write, sdext_sd_write_blocks,
             sd_flush, SD_BUFFER_SIZE);
     if(ret != 0) {
@@ -687,6 +705,9 @@ int main(int argc, char** argv) {
         sd_quit();
         return -1;
     }
+#ifdef __wasm__
+    _wasm_sdfsd_stage = 4;
+#endif
 
     /*if(ext3_has_journal(&ext3)) {
         klog("ext3 (journal ino %u, %u txns / %u blocks recovered)\n",
@@ -694,7 +715,7 @@ int main(int argc, char** argv) {
     }
     */
 
-    vdevice_t dev;
+    static vdevice_t dev;
     memset(&dev, 0, sizeof(vdevice_t));
     strcpy(dev.desc, ext3_has_journal(&ext3) ? "rootfs:ext3" : "rootfs:ext2");
     dev.mount = sdext_mount;
@@ -717,7 +738,18 @@ int main(int argc, char** argv) {
      * kernel-spawned thread, the rwlock keeps writes exclusive */
     pthread_rwlock_init(&_fs_lock, NULL);
     device_run(&dev, "/", FS_TYPE_DIR, 0777, true);
+#ifdef __wasm__
+    _wasm_sdfsd_stage = 5;
+    return 0;
+#else
     ext3_quit(&ext3);
     sd_quit();
     return 0;
+#endif
 }
+
+#ifdef __wasm__
+int ewok_service_step(void) {
+    return 0;
+}
+#endif
